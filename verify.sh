@@ -250,7 +250,7 @@ fopsubbasic() {
 	{ printf 'b op_sub\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
 	x=$(printf '654|321' | sed -f /tmp/sedit_entry.$$)
 	rm -f /tmp/sedit_entry.$$
-	e='333'
+	e='-333'
 	[ "${x}" = "${e}" ] && {
 		printf "%-15s PASSED\n" "op sub basic";
 		return 0;
@@ -264,7 +264,7 @@ fopsubnegative() {
 	{ printf 'b op_sub\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
 	x=$(printf '321|654' | sed -f /tmp/sedit_entry.$$)
 	rm -f /tmp/sedit_entry.$$
-	e='-333'
+	e='333'
 	[ "${x}" = "${e}" ] && {
 		printf "%-15s PASSED\n" "op sub negative";
 		return 0;
@@ -278,7 +278,7 @@ fopsubborrow() {
 	{ printf 'b op_sub\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
 	x=$(printf '300|1' | sed -f /tmp/sedit_entry.$$)
 	rm -f /tmp/sedit_entry.$$
-	e='299'
+	e='-299'
 	[ "${x}" = "${e}" ] && {
 		printf "%-15s PASSED\n" "op sub borrow";
 		return 0;
@@ -306,7 +306,7 @@ fopsubunequal() {
 	{ printf 'b op_sub\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
 	x=$(printf '1|12345' | sed -f /tmp/sedit_entry.$$)
 	rm -f /tmp/sedit_entry.$$
-	e='-12344'
+	e='12344'
 	[ "${x}" = "${e}" ] && {
 		printf "%-15s PASSED\n" "op sub unequal";
 		return 0;
@@ -320,7 +320,7 @@ fopsubboundary() {
 	{ printf 'b op_sub\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
 	x=$(printf '1000|999' | sed -f /tmp/sedit_entry.$$)
 	rm -f /tmp/sedit_entry.$$
-	e='1'
+	e='-1'
 	[ "${x}" = "${e}" ] && {
 		printf "%-15s PASSED\n" "op sub boundary";
 		return 0;
