@@ -59,7 +59,7 @@ The grammar is compact and unforgiving:
 
 ## Lexical Constructs
 
-`lex.sed` is the first stage of the interpreter and the first file in the project. It reads SEDIT source one line at a time and emits one token per output line, each tagged with a single letter prefix identifying its kind. This tagged stream is the contract between the lexer and every later phase.
+[sedit.sed](./sedit.sed) is the the interpreter that reads SEDIT source one line at a time and emits one token per output line, each tagged with a single letter prefix identifying its kind. This tagged stream is the contract between the lexer and every later phase.
 
 Four token kinds exist at this stage:
 
@@ -76,7 +76,7 @@ This cycling is implemented with `D`, restarting the script against whatever rem
 
 ## Stack and Arithmetic Primitives
 
-`sedit.sed` grows from the lexer into the runtime primitives that operate on the data stack. Stack words use the SOH separator from the machine encoding directly: `dup`, `drop`, `swap`, `over`, and `rot` are each a single substitution operating on the stack string with top-of-stack at the left end. Left-anchored matching was chosen specifically because `sed`'s pattern anchors (`^`) work cheaply and reliably from the start of a string; operating on the end would require captures of unknown length, which `sed` handles far more awkwardly.
+[sedit.sed](./sedit.sed) grows from the lexer into the runtime primitives that operate on the data stack. Stack words use the SOH separator from the machine encoding directly: `dup`, `drop`, `swap`, `over`, and `rot` are each a single substitution operating on the stack string with top-of-stack at the left end. Left-anchored matching was chosen specifically because `sed`'s pattern anchors (`^`) work cheaply and reliably from the start of a string; operating on the end would require captures of unknown length, which `sed` handles far more awkwardly.
 
 `add` is the first arithmetic word and the first place real computation enters the interpreter, since `sed` has no native arithmetic of any kind. It is implemented as digit by digit decimal addition with carry, the same method anyone would use by hand: align the two operands, add from the units digit up, carry into the next column. Concretely, the operation pads both operands to equal length, reverses each digit string so the loop walks left to right over what is conceptually the rightmost digit first, then consumes one digit from each operand per iteration against a fixed lookup table covering every combination of (digit, digit, carry-in) and producing (result-digit, carry-out). Once both operands are exhausted, any final carry becomes an extra leading digit, the accumulated result is reversed back into normal reading order, and leading zeros are stripped.
 
