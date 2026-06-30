@@ -76,8 +76,6 @@ This cycling is implemented with `D`, restarting the script against whatever rem
 
 ## Stack and Arithmetic Primitives
 
-## Stack and Arithmetic Primitives
-
 [sedit.sed](./sedit.sed) grows from the lexer into the runtime primitives that operate on the data stack. Stack words use the SOH separator from the machine encoding directly: `dup`, `drop`, `swap`, `over`, and `rot` are each a single substitution operating on the stack string with top-of-stack at the left end, since `sed`'s `^` anchor works cheaply from the start of a string but not from the end.
 
 `add` and `sub` are the first arithmetic words and the first place real computation enters the interpreter, since `sed` has no native arithmetic. Both are implemented as digit by digit decimal arithmetic, the same method anyone would use by hand: pad both operands to equal length, reverse each digit string so the loop walks units digit first, then consume one digit from each operand per iteration against a fixed lookup table. `add` uses a 200 line carry table over every (digit, digit, carry in) combination; `sub` uses an equivalent borrow table, plus a separate magnitude comparison to decide operand order and sign before any digit arithmetic runs, since `sed` has no concept of sign to lean on. Once digits are exhausted, results are reversed back to normal reading order and leading zeros are stripped. `sub` follows the standard RPN convention: `a b sub` computes `a - b`, the first pushed operand minus the second.
