@@ -61,6 +61,23 @@ The grammar is compact and unforgiving:
 - `if` consumes a condition and two blocks.
 - `while` consumes a test block and a body block.
 
+## Lexical Constructs
+
+`lex.sed` is the first stage of the interpreter and the first file in the project. It reads SEDIT source one line at a time and emits one token per output line, each tagged with a single letter prefix identifying its kind. This tagged stream is the contract between the lexer and every later phase.
+
+Four token kinds exist at this stage:
+
+- `N:` a number, e.g. `N:123` or `N:-5`. Numbers are signed integers only; a leading `-` is part of the literal, not a separate operator token.
+- `S:` a string, e.g. `S:hello world`. The surrounding double quotes are stripped before emission. An empty string literal `""` produces `S:` with nothing after the colon.
+- `W:` a word, e.g. `W:dup`, `W:true`, `W:add`. Any token that is not a number, string, or bracket falls through to this case. Whether a word is a primitive, a user-defined name, or a boolean literal is not decided at lex time; that distinction belongs to dispatch, not lexing.
+- `B:` a block bracket, either `B:[` or `B:]`. Brackets are matched individually here, not paired. Pairing and nesting depth are a parser concern, addressed when quoted blocks are implemented.
+
+Whitespace between tokens is required for numbers and words to be recognized as separate tokens, except where brackets are involved: brackets are matched before falling through to the word case, so `[[]]` lexes correctly as four separate bracket tokens with no surrounding whitespace needed. A token glued directly to a bracket with no space, such as `123[`, is not split; the whole sequence is read as a single word. SEDIT source is written with whitespace separating all tokens except adjacent brackets.
+
+The lexer operates as a single cycle over each input line: strip leading whitespace, attempt each token pattern in a fixed order (string, then open bracket, then close bracket, then number, then word), emit the first match, delete the matched prefix from pattern space, and repeat until the line is empty. The fixed match order matters: string and bracket patterns are tried before the number and word patterns specifically so that quoted content and structural brackets are never misread as part of a word.
+
+This cycling is implemented with `D`, restarting the script against whatever remains of the line after each emitted token, rather than reading a fresh line from input on every token. One correctness detail follows directly from this: `sed`'s substitution flag, used by the `t` command to branch on whether a prior substitution succeeded, is not reset by `D` the way it is reset at the start of a normal new input cycle. Without an explicit reset at the top of the loop, a restarted cycle can inherit a stale success flag from the substitution that produced the previous token, causing the current token's own match and tag step to be skipped even though it succeeded. The lexer clears this flag explicitly on every loop iteration before attempting any token match. This is a general lesson for every later phase that uses `D` to drive a cycle: the flag must be treated as dirty on entry to any `D`-restarted block.
+
 ## Runtime Model
 
 The runtime is intentionally minimal:
