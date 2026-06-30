@@ -246,6 +246,90 @@ fopaddunequal() {
 	}
 }
 
-{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal; r="${?}"; } || exit 1
+fopsubbasic() {
+	{ printf 'b op_sub\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '654|321' | sed -f /tmp/sedit_entry.$$)
+	rm -f /tmp/sedit_entry.$$
+	e='333'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op sub basic";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op sub basic" "${x}" "${e}";
+		return 19;
+	}
+}
+
+fopsubnegative() {
+	{ printf 'b op_sub\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '321|654' | sed -f /tmp/sedit_entry.$$)
+	rm -f /tmp/sedit_entry.$$
+	e='-333'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op sub negative";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op sub negative" "${x}" "${e}";
+		return 20;
+	}
+}
+
+fopsubborrow() {
+	{ printf 'b op_sub\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '300|1' | sed -f /tmp/sedit_entry.$$)
+	rm -f /tmp/sedit_entry.$$
+	e='299'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op sub borrow";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op sub borrow" "${x}" "${e}";
+		return 21;
+	}
+}
+
+fopsubzero() {
+	{ printf 'b op_sub\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '5|5' | sed -f /tmp/sedit_entry.$$)
+	rm -f /tmp/sedit_entry.$$
+	e='0'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op sub zero";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op sub zero" "${x}" "${e}";
+		return 22;
+	}
+}
+
+fopsubunequal() {
+	{ printf 'b op_sub\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '1|12345' | sed -f /tmp/sedit_entry.$$)
+	rm -f /tmp/sedit_entry.$$
+	e='-12344'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op sub unequal";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op sub unequal" "${x}" "${e}";
+		return 23;
+	}
+}
+
+fopsubboundary() {
+	{ printf 'b op_sub\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '1000|999' | sed -f /tmp/sedit_entry.$$)
+	rm -f /tmp/sedit_entry.$$
+	e='1'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op sub boundary";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op sub boundary" "${x}" "${e}";
+		return 24;
+	}
+}
+
+{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary; r="${?}"; } || exit 1
 
 [ "${r}" -eq 0 ] 2>/dev/null || printf "%s\n" "${r}"
