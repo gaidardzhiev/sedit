@@ -330,6 +330,104 @@ fopsubboundary() {
 	}
 }
 
-{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary; r="${?}"; } || exit 1
+funderflowdup() {
+	{ printf 'b op_dup\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '\n' | sed -f /tmp/sedit_entry.$$)
+	r=$?
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "ERR:UNDERFLOW" ] && [ "${r}" -eq 1 ] && {
+		printf "%-15s PASSED\n" "underflow dup";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s' exit %s\n" "underflow dup" "${x}" "${r}";
+		return 25;
+	}
+}
+
+funderflowdrop() {
+	{ printf 'b op_drop\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '\n' | sed -f /tmp/sedit_entry.$$)
+	r=$?
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "ERR:UNDERFLOW" ] && [ "${r}" -eq 1 ] && {
+		printf "%-15s PASSED\n" "underflow drop";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s' exit %s\n" "underflow drop" "${x}" "${r}";
+		return 26;
+	}
+}
+
+funderflowswap() {
+	{ printf 'b op_swap\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '5' | sed -f /tmp/sedit_entry.$$)
+	r=$?
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "ERR:UNDERFLOW" ] && [ "${r}" -eq 1 ] && {
+		printf "%-15s PASSED\n" "underflow swap";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s' exit %s\n" "underflow swap" "${x}" "${r}";
+		return 27;
+	}
+}
+
+funderflowover() {
+	{ printf 'b op_over\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '5' | sed -f /tmp/sedit_entry.$$)
+	r=$?
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "ERR:UNDERFLOW" ] && [ "${r}" -eq 1 ] && {
+		printf "%-15s PASSED\n" "underflow over";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s' exit %s\n" "underflow over" "${x}" "${r}";
+		return 28;
+	}
+}
+
+funderflowrot() {
+	{ printf 'b op_rot\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '5\0011' | sed -f /tmp/sedit_entry.$$)
+	r=$?
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "ERR:UNDERFLOW" ] && [ "${r}" -eq 1 ] && {
+		printf "%-15s PASSED\n" "underflow rot";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s' exit %s\n" "underflow rot" "${x}" "${r}";
+		return 29;
+	}
+}
+
+funderflowadds() {
+	{ printf 'b op_add\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '5' | sed -f /tmp/sedit_entry.$$)
+	r=$?
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "ERR:UNDERFLOW" ] && [ "${r}" -eq 1 ] && {
+		printf "%-15s PASSED\n" "underflow add";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s' exit %s\n" "underflow add" "${x}" "${r}";
+		return 30;
+	}
+}
+
+funderflowsub() {
+	{ printf 'b op_sub\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '5' | sed -f /tmp/sedit_entry.$$)
+	r=$?
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "ERR:UNDERFLOW" ] && [ "${r}" -eq 1 ] && {
+		printf "%-15s PASSED\n" "underflow sub";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s' exit %s\n" "underflow sub" "${x}" "${r}";
+		return 31;
+	}
+}
+
+{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub; r="${?}"; } || exit 1
 
 [ "${r}" -eq 0 ] 2>/dev/null || printf "%s\n" "${r}"
