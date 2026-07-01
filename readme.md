@@ -84,6 +84,14 @@ The 200 line tables are deliberately kept as flat, mechanically generated lookup
 
 Both operations surfaced real bugs during development, none visible from reading the script, all found only by tracing actual pattern space state with `l`: a reversal substitution with its accumulator and marker positions swapped, a digit table corrupted by the host scripting language's own string escaping collapsing a literal backreference into a control byte, a confusion between `sed`'s line read cycle and an already embedded newline within one buffer when folding a two process prototype into a single invocation, and an initial operand order bug where `sub` computed the reverse of standard RPN convention. Each is a standing argument for verifying every primitive by execution before composing it with anything else.
 
+## Underflow Guards
+
+Every operation checks its own arity before executing. The check is per operation rather than shared, since each operation genuinely knows its own requirements and a shared guard would hide that contract behind an indirection the project's design explicitly rejects.
+
+On underflow, the operation prints `ERR:UNDERFLOW` and exits nonzero via `q1`. GNU sed's `q1` autoprints the current pattern space before quitting, so no explicit `p` is needed and using one causes a double print in non-`-n` mode. The two signals together, a readable error token on stdout and a nonzero exit code, make failures both diagnosable by a human and detectable by a calling script without parsing output.
+
+Three guard shapes cover all current operations, each independently verified against every relevant boundary: 1 operand (`dup`, `drop`) guard against empty stack via `/^$/`; 2-operand ops (`swap`, `over`, `add`, `sub`) guard against fewer than two SOH delimited items via `/^[^\x01]*$/`; 3-operand `rot` guards against fewer than three items via `/^\([^\x01]*\x01\)\{0,1\}[^\x01]*$/`. `add` and `sub` currently retain a pipe delimited pre dispatch interface and use a pipe based guard accordingly; this will be resolved when the dispatch handles stack extraction and passes operands in the real SOH format.
+
 ## Runtime Model
 
 The runtime is intentionally minimal:
