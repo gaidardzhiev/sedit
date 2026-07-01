@@ -428,6 +428,170 @@ funderflowsub() {
 	}
 }
 
-{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub; r="${?}"; } || exit 1
+fopeq() {
+	{ printf 'b op_eq\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '321|321' | sed -f /tmp/sedit_entry.$$)
+	e='true'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op eq equal";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op eq equal" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 32;
+	}
+	x=$(printf '321|654' | sed -f /tmp/sedit_entry.$$)
+	e='false'
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op eq unequal";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op eq unequal" "${x}" "${e}";
+		return 33;
+	}
+}
+
+fopne() {
+	{ printf 'b op_ne\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '321|654' | sed -f /tmp/sedit_entry.$$)
+	e='true'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op ne unequal";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op ne unequal" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 34;
+	}
+	x=$(printf '321|321' | sed -f /tmp/sedit_entry.$$)
+	e='false'
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op ne equal";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op ne equal" "${x}" "${e}";
+		return 35;
+	}
+}
+
+foplt() {
+	{ printf 'b op_lt\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '654|321' | sed -f /tmp/sedit_entry.$$)
+	e='true'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op lt true";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op lt true" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 36;
+	}
+	x=$(printf '321|654' | sed -f /tmp/sedit_entry.$$)
+	e='false'
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op lt false";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op lt false" "${x}" "${e}";
+		return 37;
+	}
+}
+
+fople() {
+	{ printf 'b op_le\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '654|321' | sed -f /tmp/sedit_entry.$$)
+	e='true'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op le lt";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op le lt" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 38;
+	}
+	x=$(printf '321|321' | sed -f /tmp/sedit_entry.$$)
+	e='true'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op le eq";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op le eq" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 39;
+	}
+	x=$(printf '321|654' | sed -f /tmp/sedit_entry.$$)
+	e='false'
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op le gt";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op le gt" "${x}" "${e}";
+		return 40;
+	}
+}
+
+fopgt() {
+	{ printf 'b op_gt\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '321|654' | sed -f /tmp/sedit_entry.$$)
+	e='true'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op gt true";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op gt true" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 41;
+	}
+	x=$(printf '654|321' | sed -f /tmp/sedit_entry.$$)
+	e='false'
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op gt false";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op gt false" "${x}" "${e}";
+		return 42;
+	}
+}
+
+fopge() {
+	{ printf 'b op_ge\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '321|654' | sed -f /tmp/sedit_entry.$$)
+	e='true'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op ge gt";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op ge gt" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 43;
+	}
+	x=$(printf '321|321' | sed -f /tmp/sedit_entry.$$)
+	e='true'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op ge eq";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op ge eq" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 44;
+	}
+	x=$(printf '654|321' | sed -f /tmp/sedit_entry.$$)
+	e='false'
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "op ge lt";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "op ge lt" "${x}" "${e}";
+		return 45;
+	}
+}
+
+funderflowcmp() {
+	for op in eq ne lt le gt ge; do
+		{ printf "b op_${op}\n"; cat sedit.sed; } > /tmp/sedit_entry.$$
+		x=$(printf '5' | sed -f /tmp/sedit_entry.$$)
+		r=$?
+		rm -f /tmp/sedit_entry.$$
+		[ "${x}" = "ERR:UNDERFLOW" ] && [ "${r}" -eq 1 ] && {
+			printf "%-15s PASSED\n" "underflow ${op}";
+		} || {
+			printf "%-15s FAILED\ngot '%s' exit %s\n" "underflow ${op}" "${x}" "${r}";
+			return 46;
+		}
+	done
+	return 0
+}
+
+{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub && fopeq && fopne && foplt && fople && fopgt && fopge && funderflowcmp; r="${?}"; } || exit 1
 
 [ "${r}" -eq 0 ] 2>/dev/null || printf "%s\n" "${r}"
