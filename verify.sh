@@ -592,6 +592,95 @@ funderflowcmp() {
 	return 0
 }
 
-{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub && fopeq && fopne && foplt && fople && fopgt && fopge && funderflowcmp; r="${?}"; } || exit 1
+
+fdispatchliteral() {
+	{ printf 'N\nb op_dispatch\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '\nN:7\n' | sed -f /tmp/sedit_entry.$$)
+	e='7'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "dispatch num";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch num" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 47;
+	}
+	x=$(printf '7\nS:hi\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf 'hi\0017')
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "dispatch str";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch str" "${x}" "${e}";
+		return 48;
+	}
+}
+
+fdispatchstack() {
+	{ printf 'N\nb op_dispatch\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '1\0012\nW:dup\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf '1\0011\0012')
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "dispatch dup";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch dup" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 49;
+	}
+	x=$(printf '1\0012\nW:swap\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf '2\0011')
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "dispatch swap";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch swap" "${x}" "${e}";
+		return 50;
+	}
+}
+
+fdispatcharith() {
+	{ printf 'N\nb op_dispatch\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '654\001321\nW:sub\n' | sed -f /tmp/sedit_entry.$$)
+	e='-333'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "dispatch sub";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch sub" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 51;
+	}
+	x=$(printf '1\nW:add\n' | sed -f /tmp/sedit_entry.$$)
+	r=$?
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "ERR:UNDERFLOW" ] && [ "${r}" -eq 1 ] && {
+		printf "%-15s PASSED\n" "dispatch under";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s' exit %s\n" "dispatch under" "${x}" "${r}";
+		return 52;
+	}
+}
+
+fdispatchaddtail() {
+	{ printf 'N\nb op_dispatch\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '4\0015\001keep\nW:add\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf '9\001keep')
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "dispatch addtail";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch addtail" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 53;
+	}
+	x=$(printf '99\0011\001z\nW:add\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf '100\001z')
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "dispatch addcar";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch addcar" "${x}" "${e}";
+		return 54;
+	}
+}
+
+{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub && fopeq && fopne && foplt && fople && fopgt && fopge && funderflowcmp && fdispatchliteral && fdispatchstack && fdispatcharith && fdispatchaddtail; r="${?}"; } || exit 1
 
 [ "${r}" -eq 0 ] 2>/dev/null || printf "%s\n" "${r}"

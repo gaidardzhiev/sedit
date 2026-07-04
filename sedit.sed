@@ -68,6 +68,7 @@ b op_end
 	q1
 }
 h
+s/^\([0-9]*|[0-9]*\)\x01.*$/\1/
 s/^\([0-9]*\)|\([0-9]*\)$/\1\n\2/
 s/[0-9]/x/g
 :add_strip
@@ -77,8 +78,13 @@ s/[0-9]/x/g
 }
 s/x/0/g
 s/^\(0*\)\n\(0*\)$/\2|\1/
+t add_clear
+:add_clear
 G
+s/^\([0-9]*\)|\([0-9]*\)\n\([0-9]*\)|\([0-9]*\)\x01.*$/\1\3|\2\4/
+t add_joined
 s/^\([0-9]*\)|\([0-9]*\)\n\([0-9]*\)|\([0-9]*\)$/\1\3|\2\4/
+:add_joined
 s/^/@/
 :add_revA
 s/^\([^@]*\)@\([^|]\)\(.*|.*\)$/\2\1@\3/
@@ -307,6 +313,10 @@ s/@$//
 :add_strip0
 s/^0\([0-9]\)/\1/
 t add_strip0
+G
+s/^\([^\n]*\)\n[0-9]*|[0-9]*$/\1/
+t op_end
+s/^\([^\n]*\)\n[0-9]*|[0-9]*\x01\(.*\)$/\1\x01\2/
 b op_end
 
 
@@ -1503,5 +1513,61 @@ s/^9 9$/EQ/
 s/.*/false/
 b op_end
 
+
+
+:op_dispatch
+s/^\nN:\(.*\)$/\1/
+t op_end
+s/^\([^\n][^\n]*\)\nN:\(.*\)$/\2\x01\1/
+t op_end
+s/^\nS:\(.*\)$/\1/
+t op_end
+s/^\([^\n][^\n]*\)\nS:\(.*\)$/\2\x01\1/
+t op_end
+s/^\nW:true$/true/
+t op_end
+s/^\([^\n][^\n]*\)\nW:true$/true\x01\1/
+t op_end
+s/^\nW:false$/false/
+t op_end
+s/^\([^\n][^\n]*\)\nW:false$/false\x01\1/
+t op_end
+s/^\([^\n]*\)\nW:dup$/\1/
+t op_dup
+s/^\([^\n]*\)\nW:drop$/\1/
+t op_drop
+s/^\([^\n]*\)\nW:swap$/\1/
+t op_swap
+s/^\([^\n]*\)\nW:over$/\1/
+t op_over
+s/^\([^\n]*\)\nW:rot$/\1/
+t op_rot
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\(.*\)\nW:add$/\1|\2\x01\3/
+t op_add
+s/^\([^\x01]*\)\x01\([^\x01]*\)\nW:add$/\1|\2/
+t op_add
+s/^\([^\x01]*\)\x01\([^\x01]*\)\nW:sub$/\1|\2/
+t op_sub
+s/^\([^\x01]*\)\x01\([^\x01]*\)\nW:eq$/\1|\2/
+t op_eq
+s/^\([^\x01]*\)\x01\([^\x01]*\)\nW:ne$/\1|\2/
+t op_ne
+s/^\([^\x01]*\)\x01\([^\x01]*\)\nW:lt$/\1|\2/
+t op_lt
+s/^\([^\x01]*\)\x01\([^\x01]*\)\nW:le$/\1|\2/
+t op_le
+s/^\([^\x01]*\)\x01\([^\x01]*\)\nW:gt$/\1|\2/
+t op_gt
+s/^\([^\x01]*\)\x01\([^\x01]*\)\nW:ge$/\1|\2/
+t op_ge
+/^.*\nW:\(add\|sub\|eq\|ne\|lt\|le\|gt\|ge\)$/ {
+	s/.*/ERR:UNDERFLOW/
+	q1
+}
+s/^.*\nW:.*/ERR:UNKNOWN_WORD/
+t op_dispatch_fail
+s/^.*\n.*/ERR:BAD_TOKEN/
+:op_dispatch_fail
+q1
 
 :op_end
