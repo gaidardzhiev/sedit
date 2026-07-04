@@ -627,13 +627,37 @@ fdispatchstack() {
 	}
 	x=$(printf '1\0012\nW:swap\n' | sed -f /tmp/sedit_entry.$$)
 	e=$(printf '2\0011')
-	rm -f /tmp/sedit_entry.$$
 	[ "${x}" = "${e}" ] && {
 		printf "%-15s PASSED\n" "dispatch swap";
-		return 0;
 	} || {
 		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch swap" "${x}" "${e}";
-		return 50;
+		rm -f /tmp/sedit_entry.$$; return 50;
+	}
+	x=$(printf '1\0012\nW:drop\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf '2')
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "dispatch drop";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch drop" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 55;
+	}
+	x=$(printf '1\0012\0013\nW:over\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf '2\0011\0012\0013')
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "dispatch over";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch over" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 56;
+	}
+	x=$(printf '1\0012\0013\nW:rot\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf '3\0011\0012')
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "dispatch rot";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch rot" "${x}" "${e}";
+		return 57;
 	}
 }
 
