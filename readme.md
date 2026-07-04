@@ -10,18 +10,13 @@ The result is a peculiar but disciplined recursion: `sed` edits text, SEDIT mani
 
 ## The Principle
 
-SEDIT rejects the comforts of contemporary mainstream language design.
-The language is concatenative and explicit: values are pushed, words
-consume and produce stack effects, and quoted blocks will carry
-executable code as first class data once the parser layer is
-completed. A program is not a tree of expressions but a sequence of
-transformations, each one visible in the order it occurs.
+SEDIT rejects the comforts of contemporary mainstream language design. The language is concatenative and explicit: values are pushed, words consume and produce stack effects, and quoted blocks will carry executable code as first class data once the parser layer is completed. A program is not a tree of expressions but a sequence of transformations, each one visible in the order it occurs.
 
 This makes SEDIT severe, but also honest. The logic of the machine is never hidden behind decorative syntax. Everything that can be stated directly is stated directly.
 
 ## The Approach
 
-One interpreter: the `sed` interpreter. It reads SEDIT source, rewrites it into internal command forms, and executes those forms against a stack based runtime held in `sed`'s pattern and hold spaces. There is no compilation stage in the conventional sense, only a disciplined sequence of pattern space transformations.
+One interpreter: the `sed` interpreter. It reads SEDIT source, rewrites it into internal command forms, and executes those forms against a stack based runtime held in `sed`'s pattern and hold spaces. There is no compilation stage in the conventional sense, only a disciplined sequence of pattern space transformations. The lexer may be used as a producer of tagged tokens, and the evaluator may consume that token stream one line at a time.
 
 Everything is done manually in the interpreter:
 - Lexer: tokenization via `sed` pattern matching and substitution.
@@ -52,7 +47,7 @@ Every feature exists only if it serves that goal:
 
 ## Current Implemented Surface
 
-The current implementation is not a complete language yet. It is the working lower half of the interpreter: lexical tokenization, stack primitives, arithmetic primitives, comparison primitives, underflow guards, and a fully tail-preserving dispatcher for the current word surface.
+The current implementation is not a complete language yet. It is the working lower half of the interpreter plus the first evaluator loop: lexical tokenization, stack primitives, arithmetic primitives, comparison primitives, underflow guards, a fully tail-preserving dispatcher for the current word surface, and token-stream evaluation over that dispatcher.
 
 Implemented now:
 - `123` lexes as `N:123`.
@@ -66,6 +61,8 @@ Implemented now:
 - `W:true` and `W:false` dispatch as boolean literals.
 - `W:dup`, `W:drop`, `W:swap`, `W:over`, and `W:rot` dispatch to stack primitives.
 - `W:add`, `W:sub`, `W:eq`, `W:ne`, `W:lt`, `W:le`, `W:gt`, and `W:ge` dispatch to arithmetic and comparison primitives.
+- token streams can be evaluated by `op_eval`, one token per line, with the final SOH stack printed at end of input.
+- lexed source can be piped directly into `op_eval`, so `4 5 add 2 sub` now executes as a real program and produces `7`.
 
 Not implemented yet:
 - quotation assembly from `B:[` and `B:]` tokens.
@@ -76,7 +73,7 @@ Not implemented yet:
 - dictionary storage.
 - `mul`, `div`, and `mod`.
 
-This boundary is deliberate. The project grows by making each layer executable and verified before the next layer is allowed to depend on it. At this point the current primitive surface can be entered through one dispatcher boundary, with the dispatcher owning arity, operand extraction, ABI adaptation, and tail restoration.
+This boundary is deliberate. The project grows by making each layer executable and verified before the next layer is allowed to depend on it. At this point the current primitive surface can be entered through one dispatcher boundary, and a token stream can be executed by repeatedly feeding that boundary. The evaluator owns the token stream, the dispatcher owns one token plus the stack, and the primitive owns only the operands it was given.
 
 ## Lexical Constructs
 
@@ -157,7 +154,7 @@ Each comparison word has its own uniquely prefixed internal labels. This is not 
 
 Operand order follows the same standard RPN convention as `sub`: `a b lt` means `a < b`, so the second pushed operand is the left hand side and the top of stack is the right hand side. Each comparison word swaps its input fields at entry, identically to `op_sub`.
 
-The comparison words still retain the pipe based pre dispatch interface when entered directly, but through the dispatcher they now share the same tail preserving binary word discipline as arithmetic. A comparison consumes the top two operands, produces one textual boolean, and leaves the untouched stack tail behind it. The comparison logic itself remains isolated from the larger stack; the dispatcher owns extraction and restoration.
+The comparison words still retain the pipe based pre dispatch interface when entered directly, but through the dispatcher they now share the same tail-preserving binary word discipline as arithmetic. A comparison consumes the top two operands, produces one textual boolean, and leaves the untouched stack tail behind it. The comparison logic itself remains isolated from the larger stack; the dispatcher owns extraction and restoration.
 
 ## Dispatcher
 
@@ -187,6 +184,44 @@ Dispatcher failure states are explicit:
 - underflow prints `ERR:UNDERFLOW` and exits nonzero.
 - unknown words print `ERR:UNKNOWN_WORD` and exit nonzero.
 - malformed tokens print `ERR:BAD_TOKEN` and exits nonzero.
+
+## Evaluator Loop
+
+`op_eval` is the first complete execution loop. It consumes a stream of already tagged tokens, starts with an empty stack, dispatches one token, preserves the resulting stack, reads the next token, and repeats until the input stream is exhausted. At end of input it prints the final SOH encoded stack.
+
+This is the point where SEDIT crosses from tested pieces into program execution. The dispatcher still executes only one token. The evaluator gives that single-token mechanism duration.
+
+Example token stream:
+
+```
+N:4
+N:5
+W:add
+N:2
+W:sub
+```
+
+produces:
+
+```
+7
+```
+
+The lexer and evaluator now compose directly. Source such as:
+
+```
+4 5 add 2 sub
+```
+
+can be lexed into tagged tokens and then evaluated to the same final stack. This is still a small language surface, but it is no longer only a collection of primitive entry points. It is an executing stack machine for the implemented words.
+
+The evaluator establishes the third runtime law:
+
+- the evaluator owns the token stream.
+- the dispatcher owns one token and the current stack.
+- the primitive owns only its declared stack prefix.
+
+This separation is now the spine of the interpreter. Future quotation, dictionary, and control-flow work must preserve it rather than bypass it.
 
 ## Underflow Guards
 
@@ -223,6 +258,10 @@ The verifier covers:
 - tail preserving dispatch for `add`, including carry with a tail still present.
 - tail preserving dispatch for `sub`, including negative subtraction with a tail still present.
 - tail preserving dispatch for `eq`, `ne`, `lt`, `le`, `gt`, and `ge`.
+- evaluator execution of tagged token streams.
+- chained evaluator arithmetic.
+- evaluator tail preservation across multiple tokens.
+- lexer-to-evaluator execution of a small source program.
 
 The test style is intentionally plain shell. Each function sets up one direct entry point into `sedit.sed`, runs one operation, compares exact output, prints a fixed `PASSED` or `FAILED` line, and returns a unique error code. This is not ornamentation. It is how the interpreter remains honest while the internal representation is still changing.
 
@@ -236,8 +275,9 @@ The interpreter therefore grows by small mechanical victories:
 - then correctness cases.
 - then dispatcher entry.
 - then tail preservation where the operation needs to compose with a real stack.
+- then evaluator entry when the operation must compose with real token streams.
 
-`mul` is intentionally not forced at this point. The more rewarding current path has been the dispatcher, because it connects working pieces into execution without disturbing the arithmetic core before it is ready. The next natural boundary is not more local arithmetic heroism, but an evaluator loop that repeatedly feeds lexer tokens through this dispatcher.
+`mul` is intentionally not forced at this point. The more rewarding current path has been the dispatcher and evaluator, because they connect working pieces into execution without disturbing the arithmetic core before it is ready. The next natural boundary is not more local arithmetic heroism, but making the evaluator strong enough to support quotations and structured execution.
 
 ## Quoted Blocks
 
