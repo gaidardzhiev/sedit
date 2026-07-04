@@ -705,6 +705,84 @@ fdispatchaddtail() {
 	}
 }
 
-{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub && fopeq && fopne && foplt && fople && fopgt && fopge && funderflowcmp && fdispatchliteral && fdispatchstack && fdispatcharith && fdispatchaddtail; r="${?}"; } || exit 1
+fdispatchboolerr() {
+	{ printf 'N\nb op_dispatch\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '\nW:true\n' | sed -f /tmp/sedit_entry.$$)
+	e='true'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "dispatch true";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch true" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 58;
+	}
+	x=$(printf 'x\nW:false\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf 'false\001x')
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "dispatch false";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch false" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 59;
+	}
+	x=$(printf 'x\nW:nope\n' | sed -f /tmp/sedit_entry.$$)
+	r=$?
+	[ "${x}" = "ERR:UNKNOWN_WORD" ] && [ "${r}" -eq 1 ] && {
+		printf "%-15s PASSED\n" "dispatch unknown";
+	} || {
+		printf "%-15s FAILED\ngot '%s' exit %s\n" "dispatch unknown" "${x}" "${r}";
+		rm -f /tmp/sedit_entry.$$; return 60;
+	}
+	x=$(printf 'x\nB:[\n' | sed -f /tmp/sedit_entry.$$)
+	r=$?
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "ERR:BAD_TOKEN" ] && [ "${r}" -eq 1 ] && {
+		printf "%-15s PASSED\n" "dispatch badtok";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s' exit %s\n" "dispatch badtok" "${x}" "${r}";
+		return 61;
+	}
+}
+
+fdispatchsubtail() {
+	{ printf 'N\nb op_dispatch\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '4\0015\001keep\nW:sub\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf '1\001keep')
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "dispatch subtai";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch subtai" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 62;
+	}
+	x=$(printf '5\0014\001keep\nW:sub\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf -- '-1\001keep')
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "dispatch subneg";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch subneg" "${x}" "${e}";
+		return 63;
+	}
+}
+
+fdispatchcmptail() {
+	{ printf 'N\nb op_dispatch\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	for row in 'eq 5 5 true' 'ne 5 4 true' 'lt 5 4 true' 'le 5 5 true' 'gt 4 5 true' 'ge 5 5 true'; do
+		set -- ${row}
+		op=${1}; a=${2}; b=${3}; want=${4}
+		x=$(printf '%s\001%s\001keep\nW:%s\n' "${a}" "${b}" "${op}" | sed -f /tmp/sedit_entry.$$)
+		e=$(printf '%s\001keep' "${want}")
+		[ "${x}" = "${e}" ] && {
+			printf "%-15s PASSED\n" "dispatch ${op}tail";
+		} || {
+			printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "dispatch ${op}tail" "${x}" "${e}";
+			rm -f /tmp/sedit_entry.$$; return 64;
+		}
+	done
+	rm -f /tmp/sedit_entry.$$
+	return 0
+}
+
+{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub && fopeq && fopne && foplt && fople && fopgt && fopge && funderflowcmp && fdispatchliteral && fdispatchstack && fdispatcharith && fdispatchaddtail && fdispatchboolerr && fdispatchsubtail && fdispatchcmptail; r="${?}"; } || exit 1
 
 [ "${r}" -eq 0 ] 2>/dev/null || printf "%s\n" "${r}"
