@@ -10,7 +10,7 @@ The result is a peculiar but disciplined recursion: `sed` edits text, SEDIT mani
 
 ## The Principle
 
-SEDIT rejects the comforts of contemporary mainstream language design. The language is concatenative and explicit: values are pushed, words consume and produce stack effects, and quoted blocks carry executable code as first class data. A program is not a tree of expressions but a sequence of transformations, each one visible in the order it occurs.
+SEDIT rejects the comforts of contemporary mainstream language design. The language is concatenative and explicit: values are pushed, words consume and produce stack effects, and quoted blocks will carry executable code as first class data once the parser layer is completed. A program is not a tree of expressions but a sequence of transformations, each one visible in the order it occurs.
 
 This makes SEDIT severe, but also honest. The logic of the machine is never hidden behind decorative syntax. Everything that can be stated directly is stated directly.
 
@@ -20,10 +20,11 @@ One interpreter: the `sed` interpreter. It reads SEDIT source, rewrites it into 
 
 Everything is done manually in the interpreter:
 - Lexer: tokenization via `sed` pattern matching and substitution.
-- Parser: block and quotation structure recognized by explicit delimiters.
 - Runtime: data stack represented in textual form.
-- Memory: auxiliary state kept in hold space and selected encoded variables.
+- Arithmetic: digit by digit decimal computation over lookup tables.
+- Comparison: lexical magnitude comparison over padded decimal strings.
 - Dispatch: command execution driven by `b`, `t`, labels, and substitution results.
+- Memory: auxiliary state kept in hold space and selected encoded variables.
 
 Uses `sed` primitives:
 - Pattern space and hold space for runtime state.
@@ -34,32 +35,47 @@ Uses `sed` primitives:
 
 ## The Language
 
-SEDIT is a minimal stack language in the concatenative tradition. Its syntax is intentionally bare: values are pushed, words are executed, and quoted blocks defer execution until a word explicitly consumes them. The language is designed so that its own interpreter can remain small, legible, and expressible in `sed`.
+SEDIT is a minimal stack language in the concatenative tradition. Its syntax is intentionally bare: values are pushed, words are executed, and quoted blocks are recognized lexically before they become executable runtime objects. The language is designed so that its own interpreter can remain small, legible, and expressible in `sed`.
 
 Every feature exists only if it serves that goal:
 - Literals push themselves.
 - Words execute left to right.
-- Quoted blocks are data until called.
-- Control flow is composed from explicit stack effects.
-- Functions are named quotations.
+- Stack effects are the contract.
+- Arithmetic is explicit and decimal.
+- Comparisons return textual booleans.
 - No hidden coercions, no precedence, no syntactic mercy.
 
-## The Grammar
+## Current Implemented Surface
 
-The grammar is compact and unforgiving:
-- `123` pushes a number.
-- `"text"` pushes a string.
-- `true` and `false` push booleans.
-- `word` executes a primitive or user-defined word.
-- `[ ... ]` creates a quoted block.
-- `def name [ ... ]` binds a quotation to a name.
-- `call` executes a quotation on the stack.
-- `if` consumes a condition and two blocks.
-- `while` consumes a test block and a body block.
+The current implementation is not a complete language yet. It is the working lower half of the interpreter: lexical tokenization, stack primitives, arithmetic primitives, comparison primitives, underflow guards, and the first dispatcher that connects tokens to stack effects.
+
+Implemented now:
+- `123` lexes as `N:123`.
+- `-5` lexes as `N:-5`.
+- `"text"` lexes as `S:text`.
+- `""` lexes as `S:`.
+- `word` lexes as `W:word`.
+- `[` and `]` lex as `B:[` and `B:]`.
+- `N:x` dispatches by pushing `x`.
+- `S:x` dispatches by pushing `x`.
+- `W:true` and `W:false` dispatch as boolean literals.
+- `W:dup`, `W:drop`, `W:swap`, `W:over`, and `W:rot` dispatch to stack primitives.
+- `W:add`, `W:sub`, `W:eq`, `W:ne`, `W:lt`, `W:le`, `W:gt`, and `W:ge` dispatch to arithmetic and comparison primitives.
+
+Not implemented yet:
+- quotation assembly from `B:[` and `B:]` tokens.
+- user defined words.
+- `call`.
+- `if`.
+- `while`.
+- dictionary storage.
+- `mul`, `div`, and `mod`.
+
+This boundary is deliberate. The project grows by making each layer executable and verified before the next layer is allowed to depend on it.
 
 ## Lexical Constructs
 
-[sedit.sed](./sedit.sed) is the the interpreter that reads SEDIT source one line at a time and emits one token per output line, each tagged with a single letter prefix identifying its kind. This tagged stream is the contract between the lexer and every later phase.
+[sedit.sed](./sedit.sed) is the interpreter that reads SEDIT source one line at a time and emits one token per output line, each tagged with a single letter prefix identifying its kind. This tagged stream is the contract between the lexer and every later phase.
 
 Four token kinds exist at this stage:
 
@@ -70,78 +86,13 @@ Four token kinds exist at this stage:
 
 Whitespace between tokens is required for numbers and words to be recognized as separate tokens, except where brackets are involved: brackets are matched before falling through to the word case, so `[[]]` lexes correctly as four separate bracket tokens with no surrounding whitespace needed. A token glued directly to a bracket with no space, such as `123[`, is not split; the whole sequence is read as a single word. SEDIT source is written with whitespace separating all tokens except adjacent brackets.
 
-The lexer operates as a single cycle over each input line: strip leading whitespace, attempt each token pattern in a fixed order (string, then open bracket, then close bracket, then number, then word), emit the first match, delete the matched prefix from pattern space, and repeat until the line is empty. The fixed match order matters: string and bracket patterns are tried before the number and word patterns specifically so that quoted content and structural brackets are never misread as part of a word.
+The lexer operates as a single cycle over each input line: strip leading whitespace, attempt each token pattern in a fixed order, emit the first match, delete the matched prefix from pattern space, and repeat until the line is empty. The fixed match order matters: string and bracket patterns are tried before number and word patterns specifically so that quoted content and structural brackets are never misread as part of a word.
 
 This cycling is implemented with `D`, restarting the script against whatever remains of the line after each emitted token, rather than reading a fresh line from input on every token. One correctness detail follows directly from this: `sed`'s substitution flag, used by the `t` command to branch on whether a prior substitution succeeded, is not reset by `D` the way it is reset at the start of a normal new input cycle. Without an explicit reset at the top of the loop, a restarted cycle can inherit a stale success flag from the substitution that produced the previous token, causing the current token's own match and tag step to be skipped even though it succeeded. The lexer clears this flag explicitly on every loop iteration before attempting any token match. This is a general lesson for every later phase that uses `D` to drive a cycle: the flag must be treated as dirty on entry to any `D`-restarted block.
 
-## Stack and Arithmetic Primitives
-
-[sedit.sed](./sedit.sed) grows from the lexer into the runtime primitives that operate on the data stack. Stack words use the SOH separator from the machine encoding directly: `dup`, `drop`, `swap`, `over`, and `rot` are each a single substitution operating on the stack string with top-of-stack at the left end, since `sed`'s `^` anchor works cheaply from the start of a string but not from the end.
-
-`add` and `sub` are the first arithmetic words and the first place real computation enters the interpreter, since `sed` has no native arithmetic. Both are implemented as digit by digit decimal arithmetic, the same method anyone would use by hand: pad both operands to equal length, reverse each digit string so the loop walks units digit first, then consume one digit from each operand per iteration against a fixed lookup table. `add` uses a 200 line carry table over every (digit, digit, carry in) combination; `sub` uses an equivalent borrow table, plus a separate magnitude comparison to decide operand order and sign before any digit arithmetic runs, since `sed` has no concept of sign to lean on. Once digits are exhausted, results are reversed back to normal reading order and leading zeros are stripped. `sub` follows the standard RPN convention: `a b sub` computes `a - b`, the first pushed operand minus the second.
-
-The 200 line tables are deliberately kept as flat, mechanically generated lookups rather than replaced with cleverer arithmetic encodings. The repetition is itself the documentation, a truth table rather than logic to read line by line, and explicitness was prioritized over brevity given `sed`'s lack of native arithmetic.
-
-Both operations surfaced real bugs during development, none visible from reading the script, all found only by tracing actual pattern space state with `l`: a reversal substitution with its accumulator and marker positions swapped, a digit table corrupted by the host scripting language's own string escaping collapsing a literal backreference into a control byte, a confusion between `sed`'s line read cycle and an already embedded newline within one buffer when folding a two process prototype into a single invocation, and an initial operand order bug where `sub` computed the reverse of standard RPN convention. Each is a standing argument for verifying every primitive by execution before composing it with anything else.
-
-## Underflow Guards
-
-Every operation checks its own arity before executing. The check is per operation rather than shared, since each operation genuinely knows its own requirements and a shared guard would hide that contract behind an indirection the project's design explicitly rejects.
-
-On underflow, the operation prints `ERR:UNDERFLOW` and exits nonzero via `q1`. GNU sed's `q1` autoprints the current pattern space before quitting, so no explicit `p` is needed and using one causes a double print in non-`-n` mode. The two signals together, a readable error token on stdout and a nonzero exit code, make failures both diagnosable by a human and detectable by a calling script without parsing output.
-
-Three guard shapes cover all current operations, each independently verified against every relevant boundary: 1 operand (`dup`, `drop`) guard against empty stack via `/^$/`; 2-operand ops (`swap`, `over`, `add`, `sub`) guard against fewer than two SOH delimited items via `/^[^\x01]*$/`; 3-operand `rot` guards against fewer than three items via `/^\([^\x01]*\x01\)\{0,1\}[^\x01]*$/`. `add` and `sub` currently retain a pipe delimited pre dispatch interface and use a pipe based guard accordingly; this will be resolved when the dispatch handles stack extraction and passes operands in the real SOH format.
-
-## Runtime Model
-
-The runtime is intentionally minimal:
-- A data stack for values.
-- A call stack for nested execution.
-- A dictionary mapping names to quotations.
-- A pattern space representation of current state.
-- A hold space representation of persistent auxiliary state.
-
-This design embraces `sed`'s own execution cycle rather than pretending to be a different machine. The interpreter does not fight the host; it formalizes it.
-
-## Core Words
-
-The first implementation begins with a small and complete vocabulary:
-- Stack: `dup`, `drop`, `swap`, `over`, `rot`.
-- Arithmetic: `add`, `sub`, `mul`, `div`, `mod`.
-- Comparison: `eq`, `ne`, `lt`, `le`, `gt`, `ge`.
-- Boolean: `and`, `or`, `not`.
-- Control: `call`, `if`, `while`, `exit`.
-- State: `store`, `load`.
-- Text: `cat`, `len`, `split`, `join`, `substr`.
-- I/O: `print`, `read`.
-
-The intention is not breadth but sufficiency. The core must be strong enough to write real programs and small enough to be self hosted in principle.
-
-## Quoted Blocks
-
-Quoted blocks are the language's central abstraction. They are not syntax containers; they are executable values that can be stored, passed, and invoked. Quotation is the bridge between syntax and behavior, between text and action.
-
-A stack language becomes expressive only when code itself can move through the stack as data. Without quotations, the language is a calculator. With them, it is a control system.
-
-## Control Flow
-
-Control flow in SEDIT is explicit and stack driven. A conditional is a word with a fixed stack contract. A loop is a repeated quotation execution governed by a boolean result. There is no hidden parser level branching, only visible runtime behavior.
-
-Control words:
-- `if` for branching.
-- `while` for repetition.
-- `call` for quotation execution.
-- `exit` for termination.
-
-## Why `sed`
-
-`sed` is an apt host because it already works as a stateful transformer over text, with a small but expressive command set and a clear cycle of reading, transforming, branching, and printing. Its pattern space and hold space provide just enough persistence to model state, while its substitution and branching commands provide the control skeleton needed for interpretation.
-
-SEDIT is not using `sed` as a crutch. It is exploring the computational consequences of `sed` at full seriousness.
-
 ## Machine Encoding
 
-The interpreter represents all runtime state as plain text in `sed`'s pattern space and hold space. Five delimiter characters are reserved for internal structure. These characters are non printable ASCII control codes, unreachable from SEDIT source syntax, and must never appear in any user visible value or identifier. This is the one invariant the interpreter never violates!
+The interpreter represents runtime state as plain text in `sed`'s pattern space and hold space. Five delimiter characters are reserved for internal structure. These characters are non printable ASCII control codes, unreachable from normal SEDIT source syntax, and must never appear in any user visible value or identifier. This is the one invariant the interpreter never violates!
 
 | Code | Hex    | Name                  | Role                                              |
 |------|--------|-----------------------|---------------------------------------------------|
@@ -151,19 +102,158 @@ The interpreter represents all runtime state as plain text in `sed`'s pattern sp
 | EOT  | `\x04` | Dict record separator | Separates dictionary entries from each other      |
 | ENQ  | `\x05` | Quotation delimiter   | Wraps stored quotation body content               |
 
-Example data stack holding three values `1`, `2`, `3` from bottom to top:
+The current data stack uses SOH directly, with the top of stack at the left end. The reversal from the usual human drawing of a stack is intentional: `sed` anchors cheaply at the beginning of pattern space. The top item therefore appears first, followed by older items separated by SOH.
+
+Example stack after pushing `1`, then `2`, then `3`:
 
 ```
-1\x012\x013
+3\x012\x011
 ```
 
-Example dictionary with two entries:
+This orientation is the law of the runtime. Every primitive is written against it, and every test encodes it.
 
-```
-double\x03[ dup add ]\x04square\x03[ dup mul ]
-```
+## Stack Primitives
 
-Any code path that writes to pattern space or hold space is responsible for ensuring none of these bytes appear in data. No exceptions!
+The first runtime layer is the data stack. `dup`, `drop`, `swap`, `over`, and `rot` operate directly on the SOH encoded stack. They do not parse source and they do not know about tokens. They are raw runtime operations, entered by branch during testing or by dispatcher during execution.
+
+Current stack effects, with top of stack on the left:
+
+- `dup`: `a rest` becomes `a a rest`.
+- `drop`: `a rest` becomes `rest`.
+- `swap`: `a b rest` becomes `b a rest`.
+- `over`: `a b rest` becomes `b a b rest`.
+- `rot`: `a b c rest` becomes `c a b rest`.
+
+Each operation is intentionally small. In the simple cases it is a single substitution guarded by arity. The project prefers visible stack rewrites over helper abstractions that would hide the machine state.
+
+## Addition
+
+`add` is the first arithmetic word and the first place real computation enters the interpreter, since `sed` has no native arithmetic. It accepts the current pre dispatch arithmetic ABI, `top|second`, and returns the decimal sum as plain text.
+
+The operation is implemented exactly as hand addition: pad both operands to equal length, reverse both digit strings so the loop walks units digit first, consume one digit from each operand plus carry, and look up the result in a flat table. The table covers every `(digit, digit, carry in)` case. Once the loop is exhausted, the accumulated result is reversed back to normal reading order and leading zeros are stripped.
+
+The table is deliberately kept as a flat truth table rather than compressed into clever pattern logic. In a language without arithmetic, explicitness is not waste. It is proof material.
+
+Through the dispatcher, `add` now has the first tail-preserving arithmetic path. A stack such as `4 SOH 5 SOH keep` dispatched with `W:add` becomes `9 SOH keep`. The top two operands are consumed, the existing `op_add` code is reused, and the untouched stack tail is restored after the arithmetic result returns. This is the first bridge from the old pipe arithmetic ABI into the real SOH stack runtime.
+
+## Subtraction
+
+`sub` uses the same decimal discipline as `add`, but with borrow instead of carry and with an explicit magnitude comparison before digit arithmetic begins. Because `sed` has no native sign, the operation first decides which absolute value is larger, performs the subtraction in the order that produces a nonnegative magnitude, then attaches a sign when the standard RPN result is negative.
+
+Operand order follows the stack language convention: `a b sub` computes `a - b`. Internally, because the top of stack is on the left, the two input fields are swapped at entry so that the second pushed operand is treated as the left hand side and the top of stack is treated as the right hand side.
+
+`sub` currently retains the two item pipe interface when entered directly or through dispatcher. It is correct and verified for the arithmetic result, but its dispatcher path is not yet tail preserving. This is intentional: `sub` uses hold space internally during sign and borrow handling, so tail preservation must be added with the same care that was first proven on `add`.
+
+## Comparison Words
+
+The six comparison words are `eq`, `ne`, `lt`, `le`, `gt`, and `ge`. They share the same conceptual structure: pad operands to equal length, strip matching leading digits until the first differing pair, look up LT/EQ/GT from a 100 entry table, then map the comparison result to `true` or `false` depending on the word.
+
+Each comparison word has its own uniquely prefixed internal labels. This is not decoration. During development, duplicate labels caused every branch to jump to the first occurrence of the shared label, making all six comparison words produce identical behavior. The test suite caught it immediately, because six distinct relations cannot all agree on the same inputs. The resulting rule is permanent: repeated structure may be copied, but labels must remain local by name.
+
+Operand order follows the same standard RPN convention as `sub`: `a b lt` means `a < b`, so the second pushed operand is the left hand side and the top of stack is the right hand side. Each comparison word swaps its input fields at entry, identically to `op_sub`.
+
+The comparison words currently retain the pipe based pre dispatch interface. They are correct and verified as arithmetic relations, and the dispatcher can call them on a two item stack. Tail preservation for comparison dispatch is a later wrapper problem, not part of the comparison logic itself.
+
+## Dispatcher
+
+The dispatcher is the first execution bridge. It consumes a token line and a stack state, then performs the stack effect belonging to that token. Its input form during testing is the stack in pattern space, followed by a newline, followed by one token such as `N:7`, `S:hi`, or `W:add`.
+
+Literal dispatch is direct:
+- `N:x` pushes `x`.
+- `S:x` pushes `x`.
+- `W:true` pushes `true`.
+- `W:false` pushes `false`.
+
+Primitive word dispatch branches to the existing operation labels:
+- `W:dup` -> `op_dup`.
+- `W:drop` -> `op_drop`.
+- `W:swap` -> `op_swap`.
+- `W:over` -> `op_over`.
+- `W:rot` -> `op_rot`.
+
+Arithmetic and comparison dispatch deliberately reuse the older pipe operations instead of rewriting them prematurely:
+- `W:add` enters `op_add`, currently with tail restoration implemented.
+- `W:sub` enters `op_sub` on the top two items.
+- `W:eq`, `W:ne`, `W:lt`, `W:le`, `W:gt`, and `W:ge` enter their corresponding comparison operations.
+
+This makes the dispatcher a boundary, not a revolution. It allows source tokens to begin executing against the SOH stack while preserving the arithmetic code that already exists and already passes tests. The correct direction is proven first; generalization comes after.
+
+Dispatcher failure states are explicit:
+- underflow prints `ERR:UNDERFLOW` and exits nonzero.
+- unknown words print `ERR:UNKNOWN_WORD` and exit nonzero.
+- malformed tokens print `ERR:BAD_TOKEN` and exits nonzero.
+
+## Underflow Guards
+
+Every operation checks its own arity before executing. The check is per operation rather than shared, since each operation genuinely knows its own requirements and a shared guard would hide that contract behind an indirection the project's design explicitly rejects.
+
+On underflow, the operation prints `ERR:UNDERFLOW` and exits nonzero via `q1`. GNU sed's `q1` autoprints the current pattern space before quitting, so no explicit `p` is needed and using one causes a double print in non-`-n` mode. The two signals together, a readable error token on stdout and a nonzero exit code, make failures both diagnosable by a human and detectable by a calling script without parsing output.
+
+Current guard shapes:
+- 1 operand stack operations guard against empty stack via `/^$/`.
+- 2 operand stack operations guard against fewer than two SOH delimited items.
+- 3 operand `rot` guards against fewer than three SOH delimited items.
+- pipe based arithmetic and comparison operations guard against a missing pipe delimiter.
+- dispatcher arithmetic guards before attempting to extract two stack operands.
+
+The comparison underflow tests iterate over all six comparison words rather than duplicating the function body six times in the verifier. This keeps the tests compact without hiding the fact that every comparison word has its own operation entry and its own guard.
+
+## Verification
+
+[verify.sh](./verify.sh) is the executable specification of the current interpreter. Every feature described here is represented by a test before it is trusted as part of the language.
+
+The verifier covers:
+- lexical tokens for numbers, negative numbers, strings, empty strings, words, brackets, multi token lines, and small programs.
+- stack primitives `dup`, `drop`, `swap`, `over`, and `rot`.
+- addition basics, carry, overflow, zero, and unequal length operands.
+- subtraction basics, negative results, borrow, zero, unequal length operands, and boundary behavior.
+- underflow for all stack and arithmetic primitives.
+- all six comparison words with true and false outcomes.
+- underflow for all six comparison words.
+- dispatcher literal pushes.
+- dispatcher stack primitive calls.
+- dispatcher arithmetic calls.
+- dispatcher underflow.
+- tail preserving dispatch for `add`, including carry with a tail still present.
+
+The test style is intentionally plain shell. Each function sets up one direct entry point into `sedit.sed`, runs one operation, compares exact output, prints a fixed `PASSED` or `FAILED` line, and returns a unique error code. This is not ornamentation. It is how the interpreter remains honest while the internal representation is still changing.
+
+## Development Rule
+
+No feature is allowed to enter the interpreter only because it is theoretically elegant. It must survive the verifier. This matters especially in `sed`, where the visible source can look correct while pattern space is wrong by one marker, one branch target, one stale substitution flag, or one invisible control byte.
+
+The interpreter therefore grows by small mechanical victories:
+- first a direct operation.
+- then underflow.
+- then correctness cases.
+- then dispatcher entry.
+- then tail preservation where the operation needs to compose with a real stack.
+
+`mul` is intentionally not forced at this point. The more rewarding current path is the dispatcher, because it connects working pieces into execution without disturbing the arithmetic core before it is ready.
+
+## Quoted Blocks
+
+Quoted blocks are the language's central planned abstraction. They are not syntax containers; they will be executable values that can be stored, passed, and invoked. Quotation is the bridge between syntax and behavior, between text and action.
+
+At the current stage, brackets are lexed but not assembled. This is exactly where the implementation should stand: structure is recognized before runtime semantics are invented. A stack language becomes expressive only when code itself can move through the stack as data. Without quotations, the language is a calculator. With them, it is a control system.
+
+## Runtime Model
+
+The runtime model is intentionally minimal:
+- a data stack encoded with SOH.
+- a future call stack encoded with STX.
+- a future dictionary encoded with ETX and EOT.
+- quotation bodies reserved for ENQ.
+- pattern space as active state.
+- hold space as auxiliary state.
+
+This design embraces `sed`'s own execution cycle rather than pretending to be a different machine. The interpreter does not fight the host; it formalizes it.
+
+## Why `sed`
+
+`sed` is an apt host because it already works as a stateful transformer over text, with a small but expressive command set and a clear cycle of reading, transforming, branching, and printing. Its pattern space and hold space provide just enough persistence to model state, while its substitution and branching commands provide the control skeleton needed for interpretation.
+
+SEDIT is not using `sed` as a crutch. It is exploring the computational consequences of `sed` at full seriousness.
 
 ## License
 
