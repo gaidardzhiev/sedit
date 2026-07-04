@@ -10,7 +10,12 @@ The result is a peculiar but disciplined recursion: `sed` edits text, SEDIT mani
 
 ## The Principle
 
-SEDIT rejects the comforts of contemporary mainstream language design. The language is concatenative and explicit: values are pushed, words consume and produce stack effects, and quoted blocks will carry executable code as first class data once the parser layer is completed. A program is not a tree of expressions but a sequence of transformations, each one visible in the order it occurs.
+SEDIT rejects the comforts of contemporary mainstream language design.
+The language is concatenative and explicit: values are pushed, words
+consume and produce stack effects, and quoted blocks will carry
+executable code as first class data once the parser layer is
+completed. A program is not a tree of expressions but a sequence of
+transformations, each one visible in the order it occurs.
 
 This makes SEDIT severe, but also honest. The logic of the machine is never hidden behind decorative syntax. Everything that can be stated directly is stated directly.
 
@@ -47,7 +52,7 @@ Every feature exists only if it serves that goal:
 
 ## Current Implemented Surface
 
-The current implementation is not a complete language yet. It is the working lower half of the interpreter: lexical tokenization, stack primitives, arithmetic primitives, comparison primitives, underflow guards, and the first dispatcher that connects tokens to stack effects.
+The current implementation is not a complete language yet. It is the working lower half of the interpreter: lexical tokenization, stack primitives, arithmetic primitives, comparison primitives, underflow guards, and a fully tail-preserving dispatcher for the current word surface.
 
 Implemented now:
 - `123` lexes as `N:123`.
@@ -71,7 +76,7 @@ Not implemented yet:
 - dictionary storage.
 - `mul`, `div`, and `mod`.
 
-This boundary is deliberate. The project grows by making each layer executable and verified before the next layer is allowed to depend on it.
+This boundary is deliberate. The project grows by making each layer executable and verified before the next layer is allowed to depend on it. At this point the current primitive surface can be entered through one dispatcher boundary, with the dispatcher owning arity, operand extraction, ABI adaptation, and tail restoration.
 
 ## Lexical Constructs
 
@@ -134,7 +139,7 @@ The operation is implemented exactly as hand addition: pad both operands to equa
 
 The table is deliberately kept as a flat truth table rather than compressed into clever pattern logic. In a language without arithmetic, explicitness is not waste. It is proof material.
 
-Through the dispatcher, `add` now has the first tail-preserving arithmetic path. A stack such as `4 SOH 5 SOH keep` dispatched with `W:add` becomes `9 SOH keep`. The top two operands are consumed, the existing `op_add` code is reused, and the untouched stack tail is restored after the arithmetic result returns. This is the first bridge from the old pipe arithmetic ABI into the real SOH stack runtime.
+Through the dispatcher, `add` follows the general tail-preserving binary word path. A stack such as `4 SOH 5 SOH keep` dispatched with `W:add` becomes `9 SOH keep`. The dispatcher consumes only the two required operands, adapts them to the existing `op_add` pipe ABI, and restores the untouched stack tail after the arithmetic result returns. Carry is verified through this path with a tail still present.
 
 ## Subtraction
 
@@ -142,7 +147,7 @@ Through the dispatcher, `add` now has the first tail-preserving arithmetic path.
 
 Operand order follows the stack language convention: `a b sub` computes `a - b`. Internally, because the top of stack is on the left, the two input fields are swapped at entry so that the second pushed operand is treated as the left hand side and the top of stack is treated as the right hand side.
 
-`sub` currently retains the two item pipe interface when entered directly or through dispatcher. It is correct and verified for the arithmetic result, but its dispatcher path is not yet tail preserving. This is intentional: `sub` uses hold space internally during sign and borrow handling, so tail preservation must be added with the same care that was first proven on `add`.
+`sub` still retains the two item pipe interface when entered directly, but through the dispatcher it now follows the same tail-preserving binary word law as `add`. A stack such as `4 SOH 5 SOH keep` dispatched with `W:sub` becomes `1 SOH keep`, and a case such as `5 SOH 4 SOH keep` becomes `-1 SOH keep`. The wrapper does not make subtraction aware of the larger stack; it extracts the required operands, lets the existing subtraction engine do its work, and then restores the tail.
 
 ## Comparison Words
 
@@ -152,7 +157,7 @@ Each comparison word has its own uniquely prefixed internal labels. This is not 
 
 Operand order follows the same standard RPN convention as `sub`: `a b lt` means `a < b`, so the second pushed operand is the left hand side and the top of stack is the right hand side. Each comparison word swaps its input fields at entry, identically to `op_sub`.
 
-The comparison words currently retain the pipe based pre dispatch interface. They are correct and verified as arithmetic relations, and the dispatcher can call them on a two item stack. Tail preservation for comparison dispatch is a later wrapper problem, not part of the comparison logic itself.
+The comparison words still retain the pipe based pre dispatch interface when entered directly, but through the dispatcher they now share the same tail preserving binary word discipline as arithmetic. A comparison consumes the top two operands, produces one textual boolean, and leaves the untouched stack tail behind it. The comparison logic itself remains isolated from the larger stack; the dispatcher owns extraction and restoration.
 
 ## Dispatcher
 
@@ -172,11 +177,11 @@ Primitive word dispatch branches to the existing operation labels:
 - `W:rot` -> `op_rot`.
 
 Arithmetic and comparison dispatch deliberately reuse the older pipe operations instead of rewriting them prematurely:
-- `W:add` enters `op_add`, currently with tail restoration implemented.
-- `W:sub` enters `op_sub` on the top two items.
-- `W:eq`, `W:ne`, `W:lt`, `W:le`, `W:gt`, and `W:ge` enter their corresponding comparison operations.
+- `W:add` extracts two SOH stack items, adapts them to `op_add`, then restores the tail.
+- `W:sub` extracts two SOH stack items, adapts them to `op_sub`, then restores the tail.
+- `W:eq`, `W:ne`, `W:lt`, `W:le`, `W:gt`, and `W:ge` extract two SOH stack items, adapt them to their comparison operation, then restore the tail.
 
-This makes the dispatcher a boundary, not a revolution. It allows source tokens to begin executing against the SOH stack while preserving the arithmetic code that already exists and already passes tests. The correct direction is proven first; generalization comes after.
+This makes the dispatcher a boundary, not a revolution. It allows source tokens to execute against the SOH stack while preserving the arithmetic and comparison code that already exists and already passes tests. The stable law is now explicit: the dispatcher owns the larger stack, the primitive owns only the operands it was given.
 
 Dispatcher failure states are explicit:
 - underflow prints `ERR:UNDERFLOW` and exits nonzero.
@@ -194,7 +199,7 @@ Current guard shapes:
 - 2 operand stack operations guard against fewer than two SOH delimited items.
 - 3 operand `rot` guards against fewer than three SOH delimited items.
 - pipe based arithmetic and comparison operations guard against a missing pipe delimiter.
-- dispatcher arithmetic guards before attempting to extract two stack operands.
+- dispatcher arithmetic and comparison guards before attempting to extract two stack operands.
 
 The comparison underflow tests iterate over all six comparison words rather than duplicating the function body six times in the verifier. This keeps the tests compact without hiding the fact that every comparison word has its own operation entry and its own guard.
 
@@ -214,7 +219,10 @@ The verifier covers:
 - dispatcher stack primitive calls.
 - dispatcher arithmetic calls.
 - dispatcher underflow.
+- dispatcher boolean literals and error states.
 - tail preserving dispatch for `add`, including carry with a tail still present.
+- tail preserving dispatch for `sub`, including negative subtraction with a tail still present.
+- tail preserving dispatch for `eq`, `ne`, `lt`, `le`, `gt`, and `ge`.
 
 The test style is intentionally plain shell. Each function sets up one direct entry point into `sedit.sed`, runs one operation, compares exact output, prints a fixed `PASSED` or `FAILED` line, and returns a unique error code. This is not ornamentation. It is how the interpreter remains honest while the internal representation is still changing.
 
@@ -229,7 +237,7 @@ The interpreter therefore grows by small mechanical victories:
 - then dispatcher entry.
 - then tail preservation where the operation needs to compose with a real stack.
 
-`mul` is intentionally not forced at this point. The more rewarding current path is the dispatcher, because it connects working pieces into execution without disturbing the arithmetic core before it is ready.
+`mul` is intentionally not forced at this point. The more rewarding current path has been the dispatcher, because it connects working pieces into execution without disturbing the arithmetic core before it is ready. The next natural boundary is not more local arithmetic heroism, but an evaluator loop that repeatedly feeds lexer tokens through this dispatcher.
 
 ## Quoted Blocks
 
