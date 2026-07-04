@@ -1626,6 +1626,12 @@ b op_end
 
 
 
+:op_eval
+s/^/\n/
+t op_eval_clear
+:op_eval_clear
+b op_dispatch
+
 :op_dispatch
 s/^\nN:\(.*\)$/\1/
 t op_end
@@ -1696,3 +1702,8 @@ s/^.*\n.*/ERR:BAD_TOKEN/
 q1
 
 :op_end
+$ b
+t op_end_clear
+:op_end_clear
+N
+b op_dispatch

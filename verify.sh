@@ -783,6 +783,50 @@ fdispatchcmptail() {
 	return 0
 }
 
-{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub && fopeq && fopne && foplt && fople && fopgt && fopge && funderflowcmp && fdispatchliteral && fdispatchstack && fdispatcharith && fdispatchaddtail && fdispatchboolerr && fdispatchsubtail && fdispatchcmptail; r="${?}"; } || exit 1
+fevaltokens() {
+	{ printf 'b op_eval\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf 'N:4\nN:5\nW:add\n' | sed -f /tmp/sedit_entry.$$)
+	e='9'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "eval add";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "eval add" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 65;
+	}
+	x=$(printf 'N:4\nN:5\nW:add\nN:2\nW:sub\n' | sed -f /tmp/sedit_entry.$$)
+	e='7'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "eval chain";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "eval chain" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 66;
+	}
+	x=$(printf 'S:keep\nN:4\nN:5\nW:add\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf '9\001keep')
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "eval tail";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "eval tail" "${x}" "${e}";
+		return 67;
+	}
+}
+
+fevallexed() {
+	{ printf 'b op_eval\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '4 5 add 2 sub\n' | sed -nf sedit.sed | sed -f /tmp/sedit_entry.$$)
+	rm -f /tmp/sedit_entry.$$
+	e='7'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "eval lexed";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "eval lexed" "${x}" "${e}";
+		return 68;
+	}
+}
+
+{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub && fopeq && fopne && foplt && fople && fopgt && fopge && funderflowcmp && fdispatchliteral && fdispatchstack && fdispatcharith && fdispatchaddtail && fdispatchboolerr && fdispatchsubtail && fdispatchcmptail && fevaltokens && fevallexed; r="${?}"; } || exit 1
 
 [ "${r}" -eq 0 ] 2>/dev/null || printf "%s\n" "${r}"
