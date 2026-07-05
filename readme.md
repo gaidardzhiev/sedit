@@ -16,7 +16,7 @@ This makes SEDIT severe, but also honest. The logic of the machine is never hidd
 
 ## The Approach
 
-One interpreter: the `sed` interpreter. It reads SEDIT source, rewrites it into internal command forms, and executes those forms against a stack based runtime held in `sed`'s pattern and hold spaces. There is no compilation stage in the conventional sense, only a disciplined sequence of pattern space transformations. The lexer may be used as a producer of tagged tokens, and the evaluator may consume that token stream one line at a time.
+One interpreter: the `sed` interpreter. It reads SEDIT source, rewrites it into internal command forms, and executes those forms against a stack based runtime held in `sed`'s pattern and hold spaces. There is no compilation stage in the conventional sense, only a disciplined sequence of pattern space transformations. The lexer may still be used as a producer of tagged tokens, and the evaluator may still consume that token stream one line at a time, but the native runner now closes the loop inside the same `sed` program by reusing the lexer's own emission point as an execution sink.
 
 Everything is done manually in the interpreter:
 - Lexer: tokenization via `sed` pattern matching and substitution.
@@ -47,7 +47,7 @@ Every feature exists only if it serves that goal:
 
 ## Current Implemented Surface
 
-The current implementation is not a complete language yet. It is the working lower half of the interpreter plus the first evaluator loop: lexical tokenization, stack primitives, arithmetic primitives, comparison primitives, underflow guards, a fully tail-preserving dispatcher for the current word surface, and token-stream evaluation over that dispatcher.
+The current implementation is not a complete language yet. It is the working lower half of the interpreter plus the first source runner: lexical tokenization, stack primitives, arithmetic primitives, comparison primitives, underflow guards, a fully tail-preserving dispatcher for the current word surface, token-stream evaluation over that dispatcher, and native source execution through `op_run`.
 
 Implemented now:
 - `123` lexes as `N:123`.
@@ -62,8 +62,10 @@ Implemented now:
 - `W:dup`, `W:drop`, `W:swap`, `W:over`, and `W:rot` dispatch to stack primitives.
 - `W:add`, `W:sub`, `W:eq`, `W:ne`, `W:lt`, `W:le`, `W:gt`, and `W:ge` dispatch to arithmetic and comparison primitives.
 - token streams can be evaluated by `op_eval`, one token per line, with the final SOH stack printed at end of input.
-- lexed source can be piped directly into `op_eval`, so `4 5 add 2 sub` now executes as a real program and produces `7`.
+- source can be executed directly by `op_run` inside the same `sed` program, so `4 5 add 2 sub` now runs from source and produces `7` without an external shell runner.
+- the native runner reuses the existing lexer recognition and changes only the token sink at `emit`; normal lex mode still prints tagged tokens, while run mode dispatches the recognized token.
 - the evaluator has been verified across the current language surface: arithmetic, stack reordering, comparison, preserved tails, underflow, unknown words, malformed tokens, and multi line lexed input.
+- the native runner has been verified for source execution, stack preservation, multi line input, underflow, and unknown word failure.
 
 Not implemented yet:
 - quotation assembly from `B:[` and `B:]` tokens.
@@ -74,7 +76,7 @@ Not implemented yet:
 - dictionary storage.
 - `mul`, `div`, and `mod`.
 
-This boundary is deliberate. The project grows by making each layer executable and verified before the next layer is allowed to depend on it. At this point the current primitive surface can be entered through one dispatcher boundary, and a token stream can be executed by repeatedly feeding that boundary. The evaluator owns the token stream, the dispatcher owns one token plus the stack, and the primitive owns only the operands it was given. The current verifier prints 88 passing lines, not as a vanity count but as a pressure test that every layer still composes after the evaluator was added.
+This boundary is deliberate. The project grows by making each layer executable and verified before the next layer is allowed to depend on it. At this point the current primitive surface can be entered through one dispatcher boundary, a token stream can be executed by repeatedly feeding that boundary, and source text can be run inside the same `sed` instance by letting the lexer emit inward instead of outward. The evaluator owns tagged token streams, the runner owns source continuation, the dispatcher owns one token plus the stack, and the primitive owns only the operands it was given. The current verifier prints 93 passing lines, not as a vanity count but as a pressure test that every layer still composes after the native runner was added.
 
 ## Lexical Constructs
 
@@ -100,12 +102,12 @@ The interpreter represents runtime state as plain text in `sed`'s pattern space 
 | Code | Hex    | Name                  | Role                                              |
 |------|--------|-----------------------|---------------------------------------------------|
 | SOH  | `\x01` | Stack separator       | Separates items on the data stack                 |
-| STX  | `\x02` | Frame separator       | Separates frames on the call stack                |
+| STX  | `\x02` | Frame separator       | Separates the protected runner source frame now, and is reserved for future call frames |
 | ETX  | `\x03` | Dict field separator  | Separates a dictionary entry's name from its body |
 | EOT  | `\x04` | Dict record separator | Separates dictionary entries from each other      |
 | ENQ  | `\x05` | Quotation delimiter   | Wraps stored quotation body content               |
 
-The current data stack uses SOH directly, with the top of stack at the left end. The reversal from the usual human drawing of a stack is intentional: `sed` anchors cheaply at the beginning of pattern space. The top item therefore appears first, followed by older items separated by SOH.
+The current data stack uses SOH directly, with the top of stack at the left end. The reversal from the usual human drawing of a stack is intentional: `sed` anchors cheaply at the beginning of pattern space. The top item therefore appears first, followed by older items separated by SOH. In run mode, STX is not a stack item. It protects the remaining source from the data stack so that stack words cannot reorder, duplicate, or delete the future program.
 
 Example stack after pushing `1`, then `2`, then `3`:
 
@@ -208,13 +210,13 @@ produces:
 7
 ```
 
-The lexer and evaluator now compose directly. Source such as:
+The lexer and evaluator compose through their shared tagged-token contract. Source such as:
 
 ```
 4 5 add 2 sub
 ```
 
-can be lexed into tagged tokens and then evaluated to the same final stack. This is still a small language surface, but it is no longer only a collection of primitive entry points. It is an executing stack machine for the implemented words.
+can be lexed into tagged tokens and then evaluated to the same final stack. This remains useful as a test harness and as a visible phase boundary, but it is no longer the only execution path. `op_run` now executes source directly inside the same `sed` instance.
 
 The evaluator is now tested as a program executor, not merely as an arithmetic demo. It executes stack words such as `swap`, `over`, and `rot`; comparison words such as `lt`; comparison with preserved stack tail; underflow through the evaluator boundary; unknown word failure; bad token failure; multi line lexed source; and lexed source that leaves an older stack tail intact. The loop itself remains small because the dispatcher already has the correct shape: after each word finishes, `op_end` either stops at end of input or reads the next token and re-enters dispatch.
 
@@ -225,6 +227,45 @@ The evaluator establishes the third runtime law:
 - the primitive owns only its declared stack prefix.
 
 This separation is now the spine of the interpreter. Future quotation, dictionary, and control-flow work must preserve it rather than bypass it.
+
+## Native Runner
+
+`op_run` is the first source execution entry point. It is not a shell script, not an external pipeline, and not a second interpreter. It runs SEDIT source inside `sedit.sed` by reusing the original lexer as the ground of execution.
+
+The earlier temptation was to treat the lexer as an external producer and then feed its printed output into the evaluator. That is useful for testing, but it is not the language runtime. The native runner closes that gap. It lets the lexer recognize tokens exactly as before, but changes the destination of the recognized token.
+
+The switch is at `emit`:
+
+- normal lex mode keeps the old behavior: print the tagged token and continue lexing with `P` and `D`.
+- run mode marks hold space with STX, so `emit` branches to `emit_run` instead of printing.
+- `emit_run` joins the recognized token with the protected run frame and enters `op_dispatch`.
+
+This is the important architectural point: the runner does not copy the lexer. There is no second string rule, no second number rule, no second word rule. The lexer remains the single source of token truth. The runner changes only the sink.
+
+The run frame uses STX to separate the live data stack from the remaining source. This delimiter is not ordinary stack tail. It is a protected boundary owned by the runner. After a word executes, `op_end` detects the run frame and returns to `op_run_next`, which saves the updated stack, restores the remaining source, and re-enters the lexer at `line`.
+
+The runtime laws are now:
+
+- the lexer owns token recognition.
+- the runner owns source continuation.
+- the evaluator owns already tagged token streams.
+- the dispatcher owns one token plus the current stack.
+- the primitive owns only its declared stack prefix.
+
+A direct source program such as:
+
+```
+4 5 add 2 sub
+```
+
+now runs through `op_run` and produces:
+
+```
+7
+```
+
+A source program with an older stack tail also preserves that tail through the runner, because the source continuation is protected from stack operations and the dispatcher restores the real data tail after every binary word.
+
 
 ## Underflow Guards
 
@@ -271,8 +312,12 @@ The verifier covers:
 - lexer-to-evaluator execution of a small source program.
 - lexer-to-evaluator execution over multi line source.
 - lexer-to-evaluator execution where a computed result preserves an older stack tail.
+- native runner source execution through `op_run`.
+- native runner stack preservation.
+- native runner multi line source execution.
+- native runner underflow and unknown word failure states.
 
-The current verifier prints 88 passing lines. The number itself is not a goal. It is a checkpoint: lexer, primitive operations, dispatcher, and evaluator now agree on the same machine encoding and the same stack laws.
+The current verifier prints 93 passing lines. The number itself is not a goal. It is a checkpoint: lexer, primitive operations, dispatcher, and evaluator now agree on the same machine encoding and the same stack laws.
 
 The test style is intentionally plain shell. Each function sets up one direct entry point into `sedit.sed`, runs one operation, compares exact output, prints a fixed `PASSED` or `FAILED` line, and returns a unique error code. This is not ornamentation. It is how the interpreter remains honest while the internal representation is still changing.
 
@@ -287,8 +332,9 @@ The interpreter therefore grows by small mechanical victories:
 - then dispatcher entry.
 - then tail preservation where the operation needs to compose with a real stack.
 - then evaluator entry when the operation must compose with real token streams.
+- then runner entry when source itself must execute inside the same `sed` instance.
 
-`mul` is intentionally not forced at this point. The more rewarding current path has been the dispatcher and evaluator, because they connect working pieces into execution without disturbing the arithmetic core before it is ready. The next natural boundary is not more local arithmetic heroism, but making the evaluator strong enough to support quotations and structured execution.
+`mul` is intentionally not forced at this point. The more rewarding current path has been the dispatcher, evaluator, and native runner, because they connect working pieces into execution without disturbing the arithmetic core before it is ready. The next natural boundary is not more local arithmetic heroism, but giving the runner a structured form of code data: quotations and the machinery that will eventually call them.
 
 ## Quoted Blocks
 
