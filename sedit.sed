@@ -20,8 +20,16 @@ t emit
 b line
 :emit
 s/^\([^\x01]*\)\x01\([A-Z]\)\([ \t]*\)\(.*\)$/\2:\1\n\4/
+x
+/^\x02/ b emit_run
+x
 P
 D
+:emit_run
+G
+s/^\x02\(.*\)\n\([^\n]*\)\n\(.*\)$/\1\x01\x02\3\n\2/
+s/^\x01\x02/\x02/
+b op_dispatch
 :op_dup
 /^$/{
 	s/.*/ERR:UNDERFLOW/
@@ -1626,6 +1634,46 @@ b op_end
 
 
 
+:op_run
+$!{
+	N
+	b op_run
+}
+s/\n/ /g
+x
+s/.*/\x02/
+x
+b line
+
+:op_run_next
+t op_run_next_clear
+:op_run_next_clear
+s/^\x02[ \t]*$//
+t op_run_done
+s/^\(.*\)\x01\x02[ \t]*$/\1/
+t op_run_done
+s/^\x02\(.*\)$/\1/
+t op_run_save_empty
+s/^\(.*\)\x01\x02\(.*\)$/\2\n\x02\1/
+t op_run_save_stack
+s/.*/ERR:BAD_RUN_FRAME/
+q1
+:op_run_save_empty
+h
+s/.*/\x02/
+x
+b line
+:op_run_save_stack
+h
+s/^[^\n]*\n//
+x
+s/^\([^\n]*\)\n.*$/\1/
+b line
+:op_run_done
+b
+
+
+
 :op_eval
 s/^/\n/
 t op_eval_clear
@@ -1633,6 +1681,82 @@ t op_eval_clear
 b op_dispatch
 
 :op_dispatch
+t op_dispatch_clear
+:op_dispatch_clear
+s/^\x02\(.*\)\nN:\(.*\)$/\2\x01\x02\1/
+t op_end
+s/^\(.*\)\x01\x02\(.*\)\nN:\(.*\)$/\3\x01\1\x01\x02\2/
+t op_end
+s/^\x02\(.*\)\nS:\(.*\)$/\2\x01\x02\1/
+t op_end
+s/^\(.*\)\x01\x02\(.*\)\nS:\(.*\)$/\3\x01\1\x01\x02\2/
+t op_end
+s/^\x02\(.*\)\nW:true$/true\x01\x02\1/
+t op_end
+s/^\(.*\)\x01\x02\(.*\)\nW:true$/true\x01\1\x01\x02\2/
+t op_end
+s/^\x02\(.*\)\nW:false$/false\x01\x02\1/
+t op_end
+s/^\(.*\)\x01\x02\(.*\)\nW:false$/false\x01\1\x01\x02\2/
+t op_end
+/^\x02.*\nW:\(dup\|drop\|swap\|over\|rot\|add\|sub\|eq\|ne\|lt\|le\|gt\|ge\)$/ {
+	s/.*/ERR:UNDERFLOW/
+	q1
+}
+/^[^\x01]*\x01\x02.*\nW:\(swap\|over\|rot\|add\|sub\|eq\|ne\|lt\|le\|gt\|ge\)$/ {
+	s/.*/ERR:UNDERFLOW/
+	q1
+}
+/^[^\x01]*\x01[^\x01]*\x01\x02.*\nW:rot$/ {
+	s/.*/ERR:UNDERFLOW/
+	q1
+}
+s/^\(.*\)\x01\x02\(.*\)\nW:dup$/\1\x01\x02\2/
+t op_dup
+s/^\(.*\)\x01\x02\(.*\)\nW:drop$/\1\x01\x02\2/
+t op_drop
+s/^\(.*\)\x01\x02\(.*\)\nW:swap$/\1\x01\x02\2/
+t op_swap
+s/^\(.*\)\x01\x02\(.*\)\nW:over$/\1\x01\x02\2/
+t op_over
+s/^\(.*\)\x01\x02\(.*\)\nW:rot$/\1\x01\x02\2/
+t op_rot
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\x02\(.*\)\nW:add$/\1|\2\x01\x02\3/
+t op_add
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\(.*\)\x01\x02\(.*\)\nW:add$/\1|\2\x01\3\x01\x02\4/
+t op_add
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\x02\(.*\)\nW:sub$/\1|\2\x01\x02\3/
+t op_sub
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\(.*\)\x01\x02\(.*\)\nW:sub$/\1|\2\x01\3\x01\x02\4/
+t op_sub
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\x02\(.*\)\nW:eq$/\1|\2\x01\x02\3/
+t op_eq
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\(.*\)\x01\x02\(.*\)\nW:eq$/\1|\2\x01\3\x01\x02\4/
+t op_eq
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\x02\(.*\)\nW:ne$/\1|\2\x01\x02\3/
+t op_ne
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\(.*\)\x01\x02\(.*\)\nW:ne$/\1|\2\x01\3\x01\x02\4/
+t op_ne
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\x02\(.*\)\nW:lt$/\1|\2\x01\x02\3/
+t op_lt
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\(.*\)\x01\x02\(.*\)\nW:lt$/\1|\2\x01\3\x01\x02\4/
+t op_lt
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\x02\(.*\)\nW:le$/\1|\2\x01\x02\3/
+t op_le
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\(.*\)\x01\x02\(.*\)\nW:le$/\1|\2\x01\3\x01\x02\4/
+t op_le
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\x02\(.*\)\nW:gt$/\1|\2\x01\x02\3/
+t op_gt
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\(.*\)\x01\x02\(.*\)\nW:gt$/\1|\2\x01\3\x01\x02\4/
+t op_gt
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\x02\(.*\)\nW:ge$/\1|\2\x01\x02\3/
+t op_ge
+s/^\([^\x01]*\)\x01\([^\x01]*\)\x01\(.*\)\x01\x02\(.*\)\nW:ge$/\1|\2\x01\3\x01\x02\4/
+t op_ge
+s/^.*\x02.*\nW:.*/ERR:UNKNOWN_WORD/
+t op_dispatch_fail
+s/^.*\x02.*\n.*/ERR:BAD_TOKEN/
+t op_dispatch_fail
 s/^\nN:\(.*\)$/\1/
 t op_end
 s/^\([^\n][^\n]*\)\nN:\(.*\)$/\2\x01\1/
@@ -1702,6 +1826,7 @@ s/^.*\n.*/ERR:BAD_TOKEN/
 q1
 
 :op_end
+/\x02/ b op_run_next
 $ b
 t op_end_clear
 :op_end_clear
