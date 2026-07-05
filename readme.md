@@ -63,6 +63,7 @@ Implemented now:
 - `W:add`, `W:sub`, `W:eq`, `W:ne`, `W:lt`, `W:le`, `W:gt`, and `W:ge` dispatch to arithmetic and comparison primitives.
 - token streams can be evaluated by `op_eval`, one token per line, with the final SOH stack printed at end of input.
 - lexed source can be piped directly into `op_eval`, so `4 5 add 2 sub` now executes as a real program and produces `7`.
+- the evaluator has been verified across the current language surface: arithmetic, stack reordering, comparison, preserved tails, underflow, unknown words, malformed tokens, and multi line lexed input.
 
 Not implemented yet:
 - quotation assembly from `B:[` and `B:]` tokens.
@@ -73,7 +74,7 @@ Not implemented yet:
 - dictionary storage.
 - `mul`, `div`, and `mod`.
 
-This boundary is deliberate. The project grows by making each layer executable and verified before the next layer is allowed to depend on it. At this point the current primitive surface can be entered through one dispatcher boundary, and a token stream can be executed by repeatedly feeding that boundary. The evaluator owns the token stream, the dispatcher owns one token plus the stack, and the primitive owns only the operands it was given.
+This boundary is deliberate. The project grows by making each layer executable and verified before the next layer is allowed to depend on it. At this point the current primitive surface can be entered through one dispatcher boundary, and a token stream can be executed by repeatedly feeding that boundary. The evaluator owns the token stream, the dispatcher owns one token plus the stack, and the primitive owns only the operands it was given. The current verifier prints 88 passing lines, not as a vanity count but as a pressure test that every layer still composes after the evaluator was added.
 
 ## Lexical Constructs
 
@@ -215,6 +216,8 @@ The lexer and evaluator now compose directly. Source such as:
 
 can be lexed into tagged tokens and then evaluated to the same final stack. This is still a small language surface, but it is no longer only a collection of primitive entry points. It is an executing stack machine for the implemented words.
 
+The evaluator is now tested as a program executor, not merely as an arithmetic demo. It executes stack words such as `swap`, `over`, and `rot`; comparison words such as `lt`; comparison with preserved stack tail; underflow through the evaluator boundary; unknown word failure; bad token failure; multi line lexed source; and lexed source that leaves an older stack tail intact. The loop itself remains small because the dispatcher already has the correct shape: after each word finishes, `op_end` either stops at end of input or reads the next token and re-enters dispatch.
+
 The evaluator establishes the third runtime law:
 
 - the evaluator owns the token stream.
@@ -261,7 +264,15 @@ The verifier covers:
 - evaluator execution of tagged token streams.
 - chained evaluator arithmetic.
 - evaluator tail preservation across multiple tokens.
+- evaluator execution of stack words `swap`, `over`, and `rot`.
+- evaluator execution of comparison words.
+- evaluator comparison with preserved tail.
+- evaluator underflow, unknown word, and bad token failure states.
 - lexer-to-evaluator execution of a small source program.
+- lexer-to-evaluator execution over multi line source.
+- lexer-to-evaluator execution where a computed result preserves an older stack tail.
+
+The current verifier prints 88 passing lines. The number itself is not a goal. It is a checkpoint: lexer, primitive operations, dispatcher, and evaluator now agree on the same machine encoding and the same stack laws.
 
 The test style is intentionally plain shell. Each function sets up one direct entry point into `sedit.sed`, runs one operation, compares exact output, prints a fixed `PASSED` or `FAILED` line, and returns a unique error code. This is not ornamentation. It is how the interpreter remains honest while the internal representation is still changing.
 
