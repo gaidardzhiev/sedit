@@ -1037,6 +1037,75 @@ fquote() {
 	}
 }
 
-{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub && fopeq && fopne && foplt && fople && fopgt && fopge && funderflowcmp && fdispatchliteral && fdispatchstack && fdispatcharith && fdispatchaddtail && fdispatchboolerr && fdispatchsubtail && fdispatchcmptail && fevaltokens && fevallexed && fevalmore && fevalerrors && fevallexedmulti && frunsource && fquote; r="${?}"; } || exit 1
+
+fcall() {
+	{ printf 'b op_run\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '[ 1 2 add ] call\n' | sed -f /tmp/sedit_entry.$$)
+	e='3'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run call";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run call" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 92;
+	}
+	x=$(printf '"keep" [ 4 5 add ] call\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf '9\001keep')
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run calltail";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run calltail" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 93;
+	}
+	x=$(printf '[ 1 2 add ] call 3 add\n' | sed -f /tmp/sedit_entry.$$)
+	e='6'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run callcont";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run callcont" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 94;
+	}
+	x=$(printf '[ ] call 7\n' | sed -f /tmp/sedit_entry.$$)
+	e='7'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run callempty";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run callempty" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 95;
+	}
+	x=$(printf 'call\n' | sed -f /tmp/sedit_entry.$$ 2>/dev/null); r=${?}
+	[ "${x}" = 'ERR:UNDERFLOW' ] && [ "${r}" -ne 0 ] && {
+		printf "%-15s PASSED\n" "run callunder";
+	} || {
+		printf "%-15s FAILED\ngot '%s' status '%s'\nexpected 'ERR:UNDERFLOW' nonzero\n" "run callunder" "${x}" "${r}";
+		rm -f /tmp/sedit_entry.$$; return 96;
+	}
+	x=$(printf '[ [ 1 2 add ] ] call\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf 'Q:N:1\005N:2\005W:add')
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run callquote";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run callquote" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 97;
+	}
+	x=$(printf '[ [ 1 2 add ] call ] call\n' | sed -f /tmp/sedit_entry.$$)
+	e='3'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run callnest";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run callnest" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 98;
+	}
+	x=$(printf '1 call\n' | sed -f /tmp/sedit_entry.$$ 2>/dev/null); r=${?}
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = 'ERR:CALL_NON_QUOTE' ] && [ "${r}" -ne 0 ] && {
+		printf "%-15s PASSED\n" "run callbad";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s' status '%s'\nexpected 'ERR:CALL_NON_QUOTE' nonzero\n" "run callbad" "${x}" "${r}";
+		return 99;
+	}
+}
+
+{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub && fopeq && fopne && foplt && fople && fopgt && fopge && funderflowcmp && fdispatchliteral && fdispatchstack && fdispatcharith && fdispatchaddtail && fdispatchboolerr && fdispatchsubtail && fdispatchcmptail && fevaltokens && fevallexed && fevalmore && fevalerrors && fevallexedmulti && frunsource && fquote && fcall; r="${?}"; } || exit 1
 
 [ "${r}" -eq 0 ] 2>/dev/null || printf "%s\n" "${r}"

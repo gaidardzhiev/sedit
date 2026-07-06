@@ -1695,6 +1695,7 @@ b line
 :op_run_next
 t op_run_next_clear
 :op_run_next_clear
+/\x02\x07/ b op_call_next
 s/^\x02[ \t]*$//
 t op_run_done
 s/^\(.*\)\x01\x02[ \t]*$/\1/
@@ -1716,6 +1717,62 @@ s/^[^\n]*\n//
 x
 s/^\([^\n]*\)\n.*$/\1/
 b line
+:op_call_next
+t op_call_next_clear
+:op_call_next_clear
+s/^\(.*\)\x01\x02\x07\x04\(.*\)$/\1\x01\x02\2/
+t op_run_next
+s/^\x02\x07\x04\(.*\)$/\x02\1/
+t op_run_next
+s/^\(.*\)\x01\x02\x07\([^\x05\x04]*\)\x05\(.*\)\x04\(.*\)$/\1\x01\x02\x07\3\x04\4\n\2/
+t op_dispatch
+s/^\x02\x07\([^\x05\x04]*\)\x05\(.*\)\x04\(.*\)$/\x02\x07\2\x04\3\n\1/
+t op_dispatch
+s/^\(.*\)\x01\x02\x07\([^\x04]*\)\x04\(.*\)$/\1\x01\x02\x07\x04\3\n\2/
+t op_dispatch
+s/^\x02\x07\([^\x04]*\)\x04\(.*\)$/\x02\x07\x04\2\n\1/
+t op_dispatch
+s/.*/ERR:BAD_CALL_FRAME/
+q1
+
+:op_call_quote
+t op_call_quote_clear
+:op_call_quote_clear
+s/^\(.*\)\x01\x02\x07B:]\x05\(.*\)\x04\(.*\)\x08\x06\(.*\)$/Q:\4\x01\1\x01\x02\x07\2\x04\3/
+t op_call_next
+s/^\x02\x07B:]\x05\(.*\)\x04\(.*\)\x08\x06\(.*\)$/Q:\3\x01\x02\x07\1\x04\2/
+t op_call_next
+s/^\(.*\)\x01\x02\x07B:]\x04\(.*\)\x08\x06\(.*\)$/Q:\3\x01\1\x01\x02\x07\x04\2/
+t op_call_next
+s/^\x02\x07B:]\x04\(.*\)\x08\x06\(.*\)$/Q:\2\x01\x02\x07\x04\1/
+t op_call_next
+s/^\(.*\)\x01\x02\x07B:\[\x05\(.*\)\x04\(.*\)\x08\(.*\)\x06$/\1\x01\x02\x07\2\x04\3\x08\4X\x06B:[/
+t op_call_quote
+s/^\x02\x07B:\[\x05\(.*\)\x04\(.*\)\x08\(.*\)\x06$/\x02\x07\1\x04\2\x08\3X\x06B:[/
+t op_call_quote
+s/^\(.*\)\x01\x02\x07B:\[\x05\(.*\)\x04\(.*\)\x08\(.*\)\x06\(.*\)$/\1\x01\x02\x07\2\x04\3\x08\4X\x06\5\x05B:[/
+t op_call_quote
+s/^\x02\x07B:\[\x05\(.*\)\x04\(.*\)\x08\(.*\)\x06\(.*\)$/\x02\x07\1\x04\2\x08\3X\x06\4\x05B:[/
+t op_call_quote
+s/^\(.*\)\x01\x02\x07B:]\x05\(.*\)\x04\(.*\)\x08\(.*\)X\x06$/\1\x01\x02\x07\2\x04\3\x08\4\x06B:]/
+t op_call_quote
+s/^\x02\x07B:]\x05\(.*\)\x04\(.*\)\x08\(.*\)X\x06$/\x02\x07\1\x04\2\x08\3\x06B:]/
+t op_call_quote
+s/^\(.*\)\x01\x02\x07B:]\x05\(.*\)\x04\(.*\)\x08\(.*\)X\x06\(.*\)$/\1\x01\x02\x07\2\x04\3\x08\4\x06\5\x05B:]/
+t op_call_quote
+s/^\x02\x07B:]\x05\(.*\)\x04\(.*\)\x08\(.*\)X\x06\(.*\)$/\x02\x07\1\x04\2\x08\3\x06\4\x05B:]/
+t op_call_quote
+s/^\(.*\)\x01\x02\x07\([^\x05\x04]*\)\x05\(.*\)\x04\(.*\)\x08\(.*\)\x06$/\1\x01\x02\x07\3\x04\4\x08\5\x06\2/
+t op_call_quote
+s/^\x02\x07\([^\x05\x04]*\)\x05\(.*\)\x04\(.*\)\x08\(.*\)\x06$/\x02\x07\2\x04\3\x08\4\x06\1/
+t op_call_quote
+s/^\(.*\)\x01\x02\x07\([^\x05\x04]*\)\x05\(.*\)\x04\(.*\)\x08\(.*\)\x06\(.*\)$/\1\x01\x02\x07\3\x04\4\x08\5\x06\6\x05\2/
+t op_call_quote
+s/^\x02\x07\([^\x05\x04]*\)\x05\(.*\)\x04\(.*\)\x08\(.*\)\x06\(.*\)$/\x02\x07\2\x04\3\x08\4\x06\5\x05\1/
+t op_call_quote
+s/.*/ERR:UNTERMINATED_QUOTE/
+q1
+
 :op_run_done
 b
 
@@ -1746,7 +1803,7 @@ s/^\x02\(.*\)\nW:false$/false\x01\x02\1/
 t op_end
 s/^\(.*\)\x01\x02\(.*\)\nW:false$/false\x01\1\x01\x02\2/
 t op_end
-/^\x02.*\nW:\(dup\|drop\|swap\|over\|rot\|add\|sub\|eq\|ne\|lt\|le\|gt\|ge\)$/ {
+/^\x02.*\nW:\(dup\|drop\|swap\|over\|rot\|add\|sub\|eq\|ne\|lt\|le\|gt\|ge\|call\)$/ {
 	s/.*/ERR:UNDERFLOW/
 	q1
 }
@@ -1758,6 +1815,16 @@ t op_end
 	s/.*/ERR:UNDERFLOW/
 	q1
 }
+s/^Q:\([^\x01]*\)\x01\x02\(.*\)\nW:call$/\x02\x07\1\x04\2/
+t op_call_next
+s/^Q:\([^\x01]*\)\x01\(.*\)\x01\x02\(.*\)\nW:call$/\2\x01\x02\x07\1\x04\3/
+t op_call_next
+s/^.*\x02.*\nW:call$/ERR:CALL_NON_QUOTE/
+t op_dispatch_fail
+s/^\(.*\)\x01\x02\x07\(.*\)\x04\(.*\)\nB:\[$/\1\x01\x02\x07\2\x04\3\x08\x06/
+t op_call_quote
+s/^\x02\x07\(.*\)\x04\(.*\)\nB:\[$/\x02\x07\1\x04\2\x08\x06/
+t op_call_quote
 s/^\(.*\)\x01\x02\(.*\)\nW:dup$/\1\x01\x02\2/
 t op_dup
 s/^\(.*\)\x01\x02\(.*\)\nW:drop$/\1\x01\x02\2/
