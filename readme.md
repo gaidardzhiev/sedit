@@ -10,7 +10,7 @@ The result is a peculiar but disciplined recursion: `sed` edits text, SEDIT mani
 
 ## The Principle
 
-SEDIT rejects the comforts of contemporary mainstream language design. The language is concatenative and explicit: values are pushed, words consume and produce stack effects, and quoted blocks will carry executable code as first class data once the parser layer is completed. A program is not a tree of expressions but a sequence of transformations, each one visible in the order it occurs.
+SEDIT rejects the comforts of contemporary mainstream language design. The language is concatenative and explicit: values are pushed, words consume and produce stack effects, and quoted blocks now begin to carry code as first class data. A program is not a tree of expressions but a sequence of transformations, each one visible in the order it occurs.
 
 This makes SEDIT severe, but also honest. The logic of the machine is never hidden behind decorative syntax. Everything that can be stated directly is stated directly.
 
@@ -35,7 +35,7 @@ Uses `sed` primitives:
 
 ## The Language
 
-SEDIT is a minimal stack language in the concatenative tradition. Its syntax is intentionally bare: values are pushed, words are executed, and quoted blocks are recognized lexically before they become executable runtime objects. The language is designed so that its own interpreter can remain small, legible, and expressible in `sed`.
+SEDIT is a minimal stack language in the concatenative tradition. Its syntax is intentionally bare: values are pushed, words are executed, and quoted blocks are assembled as protected data before they later become executable runtime objects. The language is designed so that its own interpreter can remain small, legible, and expressible in `sed`.
 
 Every feature exists only if it serves that goal:
 - Literals push themselves.
@@ -47,7 +47,7 @@ Every feature exists only if it serves that goal:
 
 ## Current Implemented Surface
 
-The current implementation is not a complete language yet. It is the working lower half of the interpreter plus the first source runner: lexical tokenization, stack primitives, arithmetic primitives, comparison primitives, underflow guards, a fully tail-preserving dispatcher for the current word surface, token-stream evaluation over that dispatcher, and native source execution through `op_run`.
+The current implementation is not a complete language yet. It is the working lower half of the interpreter plus the first source runner and the first code-as-data object: lexical tokenization, stack primitives, arithmetic primitives, comparison primitives, underflow guards, a fully tail-preserving dispatcher for the current word surface, token-stream evaluation over that dispatcher, native source execution through `op_run`, and flat quotation literal assembly.
 
 Implemented now:
 - `123` lexes as `N:123`.
@@ -64,11 +64,15 @@ Implemented now:
 - token streams can be evaluated by `op_eval`, one token per line, with the final SOH stack printed at end of input.
 - source can be executed directly by `op_run` inside the same `sed` program, so `4 5 add 2 sub` now runs from source and produces `7` without an external shell runner.
 - the native runner reuses the existing lexer recognition and changes only the token sink at `emit`; normal lex mode still prints tagged tokens, while run mode dispatches the recognized token.
+- `[ ... ]` in run mode assembles a flat quotation literal and pushes it as one stack value with a `Q:` prefix.
+- quotation bodies store the lexer's own tagged tokens separated by ENQ, so `[ 1 2 add ]` becomes `Q:N:1 ENQ N:2 ENQ W:add`.
+- a quotation literal is data only at this stage. It does not execute until a future `call` word exists.
 - the evaluator has been verified across the current language surface: arithmetic, stack reordering, comparison, preserved tails, underflow, unknown words, malformed tokens, and multi line lexed input.
-- the native runner has been verified for source execution, stack preservation, multi line input, underflow, and unknown word failure.
+- the native runner has been verified for source execution, stack preservation, multi line input, underflow, unknown word failure, quotation literal assembly, quotation tail preservation, non-execution of quotation contents, empty quotations, and unterminated quotation failure.
 
 Not implemented yet:
-- quotation assembly from `B:[` and `B:]` tokens.
+- nested quotation matching.
+- execution of quotations.
 - user defined words.
 - `call`.
 - `if`.
@@ -76,7 +80,7 @@ Not implemented yet:
 - dictionary storage.
 - `mul`, `div`, and `mod`.
 
-This boundary is deliberate. The project grows by making each layer executable and verified before the next layer is allowed to depend on it. At this point the current primitive surface can be entered through one dispatcher boundary, a token stream can be executed by repeatedly feeding that boundary, and source text can be run inside the same `sed` instance by letting the lexer emit inward instead of outward. The evaluator owns tagged token streams, the runner owns source continuation, the dispatcher owns one token plus the stack, and the primitive owns only the operands it was given. The current verifier prints 93 passing lines, not as a vanity count but as a pressure test that every layer still composes after the native runner was added.
+This boundary is deliberate. The project grows by making each layer executable and verified before the next layer is allowed to depend on it. At this point the current primitive surface can be entered through one dispatcher boundary, a token stream can be executed by repeatedly feeding that boundary, source text can be run inside the same `sed` instance by letting the lexer emit inward instead of outward, and bracketed source can be captured as a single inert quotation value. The evaluator owns tagged token streams, the runner owns source continuation, the quotation collector owns code-as-data assembly, the dispatcher owns one token plus the stack, and the primitive owns only the operands it was given. The current verifier prints 98 passing lines, not as a vanity count but as a pressure test that every layer still composes after the quotation literal was added.
 
 ## Lexical Constructs
 
@@ -87,7 +91,7 @@ Four token kinds exist at this stage:
 - `N:` a number, e.g. `N:123` or `N:-5`. Numbers are signed integers only; a leading `-` is part of the literal, not a separate operator token.
 - `S:` a string, e.g. `S:hello world`. The surrounding double quotes are stripped before emission. An empty string literal `""` produces `S:` with nothing after the colon.
 - `W:` a word, e.g. `W:dup`, `W:true`, `W:add`. Any token that is not a number, string, or bracket falls through to this case. Whether a word is a primitive, a user-defined name, or a boolean literal is not decided at lex time; that distinction belongs to dispatch, not lexing.
-- `B:` a block bracket, either `B:[` or `B:]`. Brackets are matched individually here, not paired. Pairing and nesting depth are a parser concern, addressed when quoted blocks are implemented.
+- `B:` a block bracket, either `B:[` or `B:]`. In normal lex mode, brackets are still emitted individually. In run mode, the same emitted bracket tokens drive quotation assembly without adding a second lexer.
 
 Whitespace between tokens is required for numbers and words to be recognized as separate tokens, except where brackets are involved: brackets are matched before falling through to the word case, so `[[]]` lexes correctly as four separate bracket tokens with no surrounding whitespace needed. A token glued directly to a bracket with no space, such as `123[`, is not split; the whole sequence is read as a single word. SEDIT source is written with whitespace separating all tokens except adjacent brackets.
 
@@ -105,7 +109,7 @@ The interpreter represents runtime state as plain text in `sed`'s pattern space 
 | STX  | `\x02` | Frame separator       | Separates the protected runner source frame now, and is reserved for future call frames |
 | ETX  | `\x03` | Dict field separator  | Separates a dictionary entry's name from its body |
 | EOT  | `\x04` | Dict record separator | Separates dictionary entries from each other      |
-| ENQ  | `\x05` | Quotation delimiter   | Wraps stored quotation body content               |
+| ENQ  | `\x05` | Quotation delimiter   | Separates tagged tokens inside a quotation body    |
 
 The current data stack uses SOH directly, with the top of stack at the left end. The reversal from the usual human drawing of a stack is intentional: `sed` anchors cheaply at the beginning of pattern space. The top item therefore appears first, followed by older items separated by SOH. In run mode, STX is not a stack item. It protects the remaining source from the data stack so that stack words cannot reorder, duplicate, or delete the future program.
 
@@ -244,10 +248,13 @@ This is the important architectural point: the runner does not copy the lexer. T
 
 The run frame uses STX to separate the live data stack from the remaining source. This delimiter is not ordinary stack tail. It is a protected boundary owned by the runner. After a word executes, `op_end` detects the run frame and returns to `op_run_next`, which saves the updated stack, restores the remaining source, and re-enters the lexer at `line`.
 
+Quotation capture is also attached to the same lexer sink. When `emit_run` receives `B:[`, it does not dispatch the bracket as an ordinary word. It switches the hold-space marker from the run frame to a quote frame, preserving the current stack and the remaining source. While that marker is active, `emit` branches to `emit_quote`. The lexer continues recognizing tokens exactly as before, but the sink now appends their tagged forms to the quotation body instead of executing them. When `B:]` is recognized, the body is closed, wrapped with `Q:`, pushed as one stack value, and control returns to `op_run_next`.
+
 The runtime laws are now:
 
 - the lexer owns token recognition.
 - the runner owns source continuation.
+- the quotation collector owns temporary code-as-data assembly.
 - the evaluator owns already tagged token streams.
 - the dispatcher owns one token plus the current stack.
 - the primitive owns only its declared stack prefix.
@@ -266,6 +273,57 @@ now runs through `op_run` and produces:
 
 A source program with an older stack tail also preserves that tail through the runner, because the source continuation is protected from stack operations and the dispatcher restores the real data tail after every binary word.
 
+A quoted source fragment such as:
+
+```
+[ 1 2 add ]
+```
+
+now produces one inert value:
+
+```
+Q:N:1 ENQ N:2 ENQ W:add
+```
+
+It is important that this value is not executed. `op_run` captures the code as data and returns it to the stack. The future `call` word will be the separate step that turns quotation data back into execution.
+
+## Quotation Literals
+
+Quotation literal assembly is the first code-as-data feature. It is deliberately smaller than full control flow. A bracketed source fragment is captured by the runner, transformed into the lexer's own tagged token representation, joined with ENQ separators, prefixed with `Q:`, and pushed as a single stack item.
+
+Examples:
+
+```
+[ 1 2 add ]
+```
+
+becomes:
+
+```
+Q:N:1 ENQ N:2 ENQ W:add
+```
+
+and:
+
+```
+"keep" [ 4 5 add ]
+```
+
+becomes:
+
+```
+Q:N:4 ENQ N:5 ENQ W:add SOH keep
+```
+
+This proves the essential distinction: quotation is not execution. In:
+
+```
+[ 4 5 add ] 2
+```
+
+the quotation remains one data value and `2` is pushed after it. The result is `2 SOH Q:...`, not `9 SOH 2` and not `2 SOH 9`.
+
+Empty quotations are valid and produce `Q:`. Unterminated quotations fail with `ERR:UNTERMINATED_QUOTE` and a nonzero exit status. Nested quotation matching is intentionally not implemented in this slice; the current collector is a flat first proof that source can become data inside the same sed process without duplicating the lexer.
 
 ## Underflow Guards
 
@@ -316,8 +374,13 @@ The verifier covers:
 - native runner stack preservation.
 - native runner multi line source execution.
 - native runner underflow and unknown word failure states.
+- quotation literal assembly through the native runner.
+- quotation preservation of older stack tail.
+- proof that quotation contents do not execute while being captured.
+- empty quotation literal assembly.
+- unterminated quotation failure.
 
-The current verifier prints 93 passing lines. The number itself is not a goal. It is a checkpoint: lexer, primitive operations, dispatcher, and evaluator now agree on the same machine encoding and the same stack laws.
+The current verifier prints 98 passing lines. The number itself is not a goal. It is a checkpoint: lexer, primitive operations, dispatcher, evaluator, native runner, and the first quotation collector now agree on the same machine encoding and the same stack laws.
 
 The test style is intentionally plain shell. Each function sets up one direct entry point into `sedit.sed`, runs one operation, compares exact output, prints a fixed `PASSED` or `FAILED` line, and returns a unique error code. This is not ornamentation. It is how the interpreter remains honest while the internal representation is still changing.
 
@@ -333,14 +396,17 @@ The interpreter therefore grows by small mechanical victories:
 - then tail preservation where the operation needs to compose with a real stack.
 - then evaluator entry when the operation must compose with real token streams.
 - then runner entry when source itself must execute inside the same `sed` instance.
+- then quotation entry when source must become data without being executed.
 
-`mul` is intentionally not forced at this point. The more rewarding current path has been the dispatcher, evaluator, and native runner, because they connect working pieces into execution without disturbing the arithmetic core before it is ready. The next natural boundary is not more local arithmetic heroism, but giving the runner a structured form of code data: quotations and the machinery that will eventually call them.
+`mul` is intentionally not forced at this point. The more rewarding current path has been the dispatcher, evaluator, native runner, and quotation literal, because they connect working pieces into execution and code-as-data without disturbing the arithmetic core before it is ready. The next natural boundary is not more local arithmetic heroism, but deciding whether flat quotations should first gain `call` or whether nested quotation capture must be made real before execution is allowed.
 
 ## Quoted Blocks
 
-Quoted blocks are the language's central planned abstraction. They are not syntax containers; they will be executable values that can be stored, passed, and invoked. Quotation is the bridge between syntax and behavior, between text and action.
+Quoted blocks are the language's central abstraction. They are not syntax containers; they are code values. Quotation is the bridge between syntax and behavior, between text and action.
 
-At the current stage, brackets are lexed but not assembled. This is exactly where the implementation should stand: structure is recognized before runtime semantics are invented. A stack language becomes expressive only when code itself can move through the stack as data. Without quotations, the language is a calculator. With them, it is a control system.
+At the current stage, flat bracketed blocks are assembled but not executed. This is exactly the right first boundary: code must become data before data is allowed to become code again. A stack language becomes expressive only when code itself can move through the stack as data. Without quotations, the language is a calculator. With them, it begins to become a control system.
+
+The current quotation value is intentionally plain: `Q:` followed by the tagged token body, with ENQ between tokens. This keeps the body close to the lexer output rather than inventing a second representation. The future `call` word should therefore not parse source text again; it should consume the already tagged quotation body and feed it back into the same execution discipline.
 
 ## Runtime Model
 
@@ -348,7 +414,7 @@ The runtime model is intentionally minimal:
 - a data stack encoded with SOH.
 - a future call stack encoded with STX.
 - a future dictionary encoded with ETX and EOT.
-- quotation bodies reserved for ENQ.
+- quotation bodies encoded with ENQ.
 - pattern space as active state.
 - hold space as auxiliary state.
 
