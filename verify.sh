@@ -968,6 +968,52 @@ frunsource() {
 	}
 }
 
-{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub && fopeq && fopne && foplt && fople && fopgt && fopge && funderflowcmp && fdispatchliteral && fdispatchstack && fdispatcharith && fdispatchaddtail && fdispatchboolerr && fdispatchsubtail && fdispatchcmptail && fevaltokens && fevallexed && fevalmore && fevalerrors && fevallexedmulti && frunsource; r="${?}"; } || exit 1
+
+fquote() {
+	{ printf 'b op_run\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '[ 1 2 add ]\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf 'Q:N:1\005N:2\005W:add')
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run quote";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run quote" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 84;
+	}
+	x=$(printf '"keep" [ 4 5 add ]\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf 'Q:N:4\005N:5\005W:add\001keep')
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run quotetail";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run quotetail" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 85;
+	}
+	x=$(printf '[ 4 5 add ] 2\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf '2\001Q:N:4\005N:5\005W:add')
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run quotenoexec";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run quotenoexec" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 86;
+	}
+	x=$(printf '[ ]\n' | sed -f /tmp/sedit_entry.$$)
+	e='Q:'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run quoteempty";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run quoteempty" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 87;
+	}
+	x=$(printf '[ 1 2\n' | sed -f /tmp/sedit_entry.$$ 2>/dev/null); r=${?}
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = 'ERR:UNTERMINATED_QUOTE' ] && [ "${r}" -ne 0 ] && {
+		printf "%-15s PASSED\n" "run quoteerr";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s' status '%s'\nexpected 'ERR:UNTERMINATED_QUOTE' nonzero\n" "run quoteerr" "${x}" "${r}";
+		return 88;
+	}
+}
+
+{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub && fopeq && fopne && foplt && fople && fopgt && fopge && funderflowcmp && fdispatchliteral && fdispatchstack && fdispatcharith && fdispatchaddtail && fdispatchboolerr && fdispatchsubtail && fdispatchcmptail && fevaltokens && fevallexed && fevalmore && fevalerrors && fevallexedmulti && frunsource && fquote; r="${?}"; } || exit 1
 
 [ "${r}" -eq 0 ] 2>/dev/null || printf "%s\n" "${r}"

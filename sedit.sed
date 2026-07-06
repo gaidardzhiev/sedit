@@ -5,6 +5,13 @@ t clear
 :clear
 s/^[ \t]\+//
 /^$/{
+	x
+	/^\x03/{
+		x
+		s/.*/ERR:UNTERMINATED_QUOTE/
+		q1
+	}
+	x
 	d
 }
 s/^"\([^"]*\)"/\1\x01S/
@@ -21,15 +28,47 @@ b line
 :emit
 s/^\([^\x01]*\)\x01\([A-Z]\)\([ \t]*\)\(.*\)$/\2:\1\n\4/
 x
+/^\x03/ b emit_quote
 /^\x02/ b emit_run
 x
 P
 D
 :emit_run
+t emit_run_clear
+:emit_run_clear
 G
+s/^\x02\(.*\)\nB:\[\n\(.*\)$/\2\n\x03\1\x04/
+t emit_run_quote_start
 s/^\x02\(.*\)\n\([^\n]*\)\n\(.*\)$/\1\x01\x02\3\n\2/
 s/^\x01\x02/\x02/
 b op_dispatch
+:emit_run_quote_start
+h
+s/^[^\n]*\n//
+x
+s/^\([^\n]*\)\n.*$/\1/
+b line
+:emit_quote
+t emit_quote_clear
+:emit_quote_clear
+G
+s/^\x03\(.*\)\x04\(.*\)\nB:\]\n\(.*\)$/Q:\2\x01\1\x01\x02\3/
+t emit_quote_close
+s/^\x03\(.*\)\x04\n\([^\n]*\)\n\(.*\)$/\3\n\x03\1\x04\2/
+t emit_quote_save
+s/^\x03\(.*\)\x04\(.*\)\n\([^\n]*\)\n\(.*\)$/\4\n\x03\1\x04\2\x05\3/
+t emit_quote_save
+s/.*/ERR:BAD_QUOTE_FRAME/
+q1
+:emit_quote_close
+s/^\(Q:.*\)\x01\x01\x02/\1\x01\x02/
+b op_run_next
+:emit_quote_save
+h
+s/^[^\n]*\n//
+x
+s/^\([^\n]*\)\n.*$/\1/
+b line
 :op_dup
 /^$/{
 	s/.*/ERR:UNDERFLOW/
