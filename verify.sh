@@ -1003,6 +1003,29 @@ fquote() {
 		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run quoteempty" "${x}" "${e}";
 		rm -f /tmp/sedit_entry.$$; return 87;
 	}
+	x=$(printf '[ 1 [ 2 ] 3 ]\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf 'Q:N:1\005B:[\005N:2\005B:]\005N:3')
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run quotenest";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run quotenest" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 88;
+	}
+	x=$(printf '[ [ ] ]\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf 'Q:B:[\005B:]')
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run quotedeep";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run quotedeep" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 89;
+	}
+	x=$(printf '[ 1 [ 2 ]\n' | sed -f /tmp/sedit_entry.$$ 2>/dev/null); r=${?}
+	[ "${x}" = 'ERR:UNTERMINATED_QUOTE' ] && [ "${r}" -ne 0 ] && {
+		printf "%-15s PASSED\n" "run qnesterr";
+	} || {
+		printf "%-15s FAILED\ngot '%s' status '%s'\nexpected 'ERR:UNTERMINATED_QUOTE' nonzero\n" "run qnesterr" "${x}" "${r}";
+		rm -f /tmp/sedit_entry.$$; return 90;
+	}
 	x=$(printf '[ 1 2\n' | sed -f /tmp/sedit_entry.$$ 2>/dev/null); r=${?}
 	rm -f /tmp/sedit_entry.$$
 	[ "${x}" = 'ERR:UNTERMINATED_QUOTE' ] && [ "${r}" -ne 0 ] && {
@@ -1010,7 +1033,7 @@ fquote() {
 		return 0;
 	} || {
 		printf "%-15s FAILED\ngot '%s' status '%s'\nexpected 'ERR:UNTERMINATED_QUOTE' nonzero\n" "run quoteerr" "${x}" "${r}";
-		return 88;
+		return 91;
 	}
 }
 

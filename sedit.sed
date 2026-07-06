@@ -37,7 +37,7 @@ D
 t emit_run_clear
 :emit_run_clear
 G
-s/^\x02\(.*\)\nB:\[\n\(.*\)$/\2\n\x03\1\x04/
+s/^\x02\(.*\)\nB:\[\n\(.*\)$/\2\n\x03\1\x04\x06/
 t emit_run_quote_start
 s/^\x02\(.*\)\n\([^\n]*\)\n\(.*\)$/\1\x01\x02\3\n\2/
 s/^\x01\x02/\x02/
@@ -52,11 +52,19 @@ b line
 t emit_quote_clear
 :emit_quote_clear
 G
-s/^\x03\(.*\)\x04\(.*\)\nB:\]\n\(.*\)$/Q:\2\x01\1\x01\x02\3/
+s/^\x03\(.*\)\x04\x06\(.*\)\nB:\]\n\(.*\)$/Q:\2\x01\1\x01\x02\3/
 t emit_quote_close
-s/^\x03\(.*\)\x04\n\([^\n]*\)\n\(.*\)$/\3\n\x03\1\x04\2/
+s/^\x03\(.*\)\x04\(.*\)X\x06\nB:\]\n\(.*\)$/\3\n\x03\1\x04\2\x06B:]/
 t emit_quote_save
-s/^\x03\(.*\)\x04\(.*\)\n\([^\n]*\)\n\(.*\)$/\4\n\x03\1\x04\2\x05\3/
+s/^\x03\(.*\)\x04\(.*\)X\x06\(.*\)\nB:\]\n\(.*\)$/\4\n\x03\1\x04\2\x06\3\x05B:]/
+t emit_quote_save
+s/^\x03\(.*\)\x04\(.*\)\x06\nB:\[\n\(.*\)$/\3\n\x03\1\x04\2X\x06B:[/
+t emit_quote_save
+s/^\x03\(.*\)\x04\(.*\)\x06\(.*\)\nB:\[\n\(.*\)$/\4\n\x03\1\x04\2X\x06\3\x05B:[/
+t emit_quote_save
+s/^\x03\(.*\)\x04\(.*\)\x06\n\([^\n]*\)\n\(.*\)$/\4\n\x03\1\x04\2\x06\3/
+t emit_quote_save
+s/^\x03\(.*\)\x04\(.*\)\x06\(.*\)\n\([^\n]*\)\n\(.*\)$/\5\n\x03\1\x04\2\x06\3\x05\4/
 t emit_quote_save
 s/.*/ERR:BAD_QUOTE_FRAME/
 q1
