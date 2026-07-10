@@ -1174,6 +1174,107 @@ fif() {
 	}
 }
 
-{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub && fopeq && fopne && foplt && fople && fopgt && fopge && funderflowcmp && fdispatchliteral && fdispatchstack && fdispatcharith && fdispatchaddtail && fdispatchboolerr && fdispatchsubtail && fdispatchcmptail && fevaltokens && fevallexed && fevalmore && fevalerrors && fevallexedmulti && frunsource && fquote && fcall && fif; r="${?}"; } || exit 1
+
+
+fwhile() {
+	{ printf 'b op_run\n'; cat sedit.sed; } > /tmp/sedit_entry.$$
+	x=$(printf '0 [ dup 0 gt ] [ 1 sub ] while\n' | sed -f /tmp/sedit_entry.$$)
+	e='0'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run whilefalse";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run whilefalse" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 108;
+	}
+	x=$(printf '3 [ dup 0 gt ] [ 1 sub ] while\n' | sed -f /tmp/sedit_entry.$$)
+	e='0'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run whilecount";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run whilecount" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 109;
+	}
+	x=$(printf '"keep" 3 [ dup 0 gt ] [ 1 sub ] while\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf '0\001keep')
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run whiletail";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run whiletail" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 110;
+	}
+	x=$(printf '3 [ dup 0 gt ] [ 1 sub ] while 7 add\n' | sed -f /tmp/sedit_entry.$$)
+	e='7'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run whilecont";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run whilecont" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 111;
+	}
+	x=$(printf '3 [ [ dup 0 gt ] call ] [ [ 1 sub ] call ] while\n' | sed -f /tmp/sedit_entry.$$)
+	e='0'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run whilecall";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run whilecall" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 112;
+	}
+	x=$(printf '3 [ dup 0 gt ] [ true [ 1 sub ] [ 9 ] if ] while\n' | sed -f /tmp/sedit_entry.$$)
+	e='0'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run whileif";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run whileif" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 113;
+	}
+	x=$(printf '2 [ dup 0 gt ] [ 1 sub 2 [ dup 0 gt ] [ 1 sub ] while drop ] while\n' | sed -f /tmp/sedit_entry.$$)
+	e='0'
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run whilenest";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run whilenest" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 114;
+	}
+	x=$(printf '0 [ dup 0 gt ] [ ] while 7\n' | sed -f /tmp/sedit_entry.$$)
+	e=$(printf '7\0010')
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run whileempty";
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run whileempty" "${x}" "${e}";
+		rm -f /tmp/sedit_entry.$$; return 115;
+	}
+	x=$(printf 'while\n' | sed -f /tmp/sedit_entry.$$ 2>/dev/null); r=${?}
+	[ "${x}" = 'ERR:UNDERFLOW' ] && [ "${r}" -ne 0 ] && {
+		printf "%-15s PASSED\n" "run whileunder";
+	} || {
+		printf "%-15s FAILED\ngot '%s' status '%s'\nexpected 'ERR:UNDERFLOW' nonzero\n" "run whileunder" "${x}" "${r}";
+		rm -f /tmp/sedit_entry.$$; return 116;
+	}
+	x=$(printf '1 2 while\n' | sed -f /tmp/sedit_entry.$$ 2>/dev/null); r=${?}
+	[ "${x}" = 'ERR:WHILE_NON_QUOTE' ] && [ "${r}" -ne 0 ] && {
+		printf "%-15s PASSED\n" "run whilequote";
+	} || {
+		printf "%-15s FAILED\ngot '%s' status '%s'\nexpected 'ERR:WHILE_NON_QUOTE' nonzero\n" "run whilequote" "${x}" "${r}";
+		rm -f /tmp/sedit_entry.$$; return 117;
+	}
+	x=$(printf '[ 1 ] [ ] while\n' | sed -f /tmp/sedit_entry.$$ 2>/dev/null); r=${?}
+	[ "${x}" = 'ERR:WHILE_NON_BOOL' ] && [ "${r}" -ne 0 ] && {
+		printf "%-15s PASSED\n" "run whilebool";
+	} || {
+		printf "%-15s FAILED\ngot '%s' status '%s'\nexpected 'ERR:WHILE_NON_BOOL' nonzero\n" "run whilebool" "${x}" "${r}";
+		rm -f /tmp/sedit_entry.$$; return 118;
+	}
+	x=$(printf '3 4 0 [ over 0 gt ] [ rot dup rot add rot 1 sub swap ] while swap drop swap drop\n' | sed -f /tmp/sedit_entry.$$)
+	e='12'
+	rm -f /tmp/sedit_entry.$$
+	[ "${x}" = "${e}" ] && {
+		printf "%-15s PASSED\n" "run selfmul";
+		return 0;
+	} || {
+		printf "%-15s FAILED\ngot '%s'\nexpected '%s'\n" "run selfmul" "${x}" "${e}";
+		return 119;
+	}
+}
+
+{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub && fopeq && fopne && foplt && fople && fopgt && fopge && funderflowcmp && fdispatchliteral && fdispatchstack && fdispatcharith && fdispatchaddtail && fdispatchboolerr && fdispatchsubtail && fdispatchcmptail && fevaltokens && fevallexed && fevalmore && fevalerrors && fevallexedmulti && frunsource && fquote && fcall && fif && fwhile; r="${?}"; } || exit 1
 
 [ "${r}" -eq 0 ] 2>/dev/null || printf "%s\n" "${r}"

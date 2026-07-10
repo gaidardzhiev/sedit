@@ -1696,6 +1696,8 @@ b line
 t op_run_next_clear
 :op_run_next_clear
 /\x02\x07/ b op_call_next
+/\x02\x09/ b op_while_condition
+/\x02\x0c/ b op_while_body
 s/^\x02[ \t]*$//
 t op_run_done
 s/^\(.*\)\x01\x02[ \t]*$/\1/
@@ -1773,6 +1775,34 @@ t op_call_quote
 s/.*/ERR:UNTERMINATED_QUOTE/
 q1
 
+:op_while_condition
+t op_while_condition_clear
+:op_while_condition_clear
+s/^true\x01\x02\x09\([^\x0b]*\)\x0b\([^\x04]*\)\x04\(.*\)$/\x02\x07\2\x04\x0c\1\x0b\2\x04\3/
+t op_call_next
+s/^true\x01\(.*\)\x01\x02\x09\([^\x0b]*\)\x0b\([^\x04]*\)\x04\(.*\)$/\1\x01\x02\x07\3\x04\x0c\2\x0b\3\x04\4/
+t op_call_next
+s/^false\x01\x02\x09[^\x0b]*\x0b[^\x04]*\x04\(.*\)$/\x02\1/
+t op_run_next
+s/^false\x01\(.*\)\x01\x02\x09[^\x0b]*\x0b[^\x04]*\x04\(.*\)$/\1\x01\x02\2/
+t op_run_next
+/^.*\x02\x09/{
+	s/.*/ERR:WHILE_NON_BOOL/
+	q1
+}
+s/.*/ERR:BAD_WHILE_FRAME/
+q1
+
+:op_while_body
+t op_while_body_clear
+:op_while_body_clear
+s/^\x02\x0c\([^\x0b]*\)\x0b\([^\x04]*\)\x04\(.*\)$/\x02\x07\1\x04\x09\1\x0b\2\x04\3/
+t op_call_next
+s/^\(.*\)\x01\x02\x0c\([^\x0b]*\)\x0b\([^\x04]*\)\x04\(.*\)$/\1\x01\x02\x07\2\x04\x09\2\x0b\3\x04\4/
+t op_call_next
+s/.*/ERR:BAD_WHILE_FRAME/
+q1
+
 :op_run_done
 b
 
@@ -1803,11 +1833,11 @@ s/^\x02\(.*\)\nW:false$/false\x01\x02\1/
 t op_end
 s/^\(.*\)\x01\x02\(.*\)\nW:false$/false\x01\1\x01\x02\2/
 t op_end
-/^\x02.*\nW:\(dup\|drop\|swap\|over\|rot\|add\|sub\|eq\|ne\|lt\|le\|gt\|ge\|call\|if\)$/ {
+/^\x02.*\nW:\(dup\|drop\|swap\|over\|rot\|add\|sub\|eq\|ne\|lt\|le\|gt\|ge\|call\|if\|while\)$/ {
 	s/.*/ERR:UNDERFLOW/
 	q1
 }
-/^[^\x01]*\x01\x02.*\nW:\(swap\|over\|rot\|add\|sub\|eq\|ne\|lt\|le\|gt\|ge\|if\)$/ {
+/^[^\x01]*\x01\x02.*\nW:\(swap\|over\|rot\|add\|sub\|eq\|ne\|lt\|le\|gt\|ge\|if\|while\)$/ {
 	s/.*/ERR:UNDERFLOW/
 	q1
 }
@@ -1819,6 +1849,12 @@ t op_end
 	s/.*/ERR:UNDERFLOW/
 	q1
 }
+s/^Q:\([^\x01]*\)\x01Q:\([^\x01]*\)\x01\x02\(.*\)\nW:while$/\x02\x07\2\x04\x09\2\x0b\1\x04\3/
+t op_call_next
+s/^Q:\([^\x01]*\)\x01Q:\([^\x01]*\)\x01\(.*\)\x01\x02\(.*\)\nW:while$/\3\x01\x02\x07\2\x04\x09\2\x0b\1\x04\4/
+t op_call_next
+s/^.*\x02.*\nW:while$/ERR:WHILE_NON_QUOTE/
+t op_dispatch_fail
 s/^Q:\([^\x01]*\)\x01Q:\([^\x01]*\)\x01true\x01\x02\(.*\)\nW:if$/\x02\x07\2\x04\3/
 t op_call_next
 s/^Q:\([^\x01]*\)\x01Q:\([^\x01]*\)\x01false\x01\x02\(.*\)\nW:if$/\x02\x07\1\x04\3/
