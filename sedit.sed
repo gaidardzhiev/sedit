@@ -1803,11 +1803,11 @@ s/^\x02\(.*\)\nW:false$/false\x01\x02\1/
 t op_end
 s/^\(.*\)\x01\x02\(.*\)\nW:false$/false\x01\1\x01\x02\2/
 t op_end
-/^\x02.*\nW:\(dup\|drop\|swap\|over\|rot\|add\|sub\|eq\|ne\|lt\|le\|gt\|ge\|call\)$/ {
+/^\x02.*\nW:\(dup\|drop\|swap\|over\|rot\|add\|sub\|eq\|ne\|lt\|le\|gt\|ge\|call\|if\)$/ {
 	s/.*/ERR:UNDERFLOW/
 	q1
 }
-/^[^\x01]*\x01\x02.*\nW:\(swap\|over\|rot\|add\|sub\|eq\|ne\|lt\|le\|gt\|ge\)$/ {
+/^[^\x01]*\x01\x02.*\nW:\(swap\|over\|rot\|add\|sub\|eq\|ne\|lt\|le\|gt\|ge\|if\)$/ {
 	s/.*/ERR:UNDERFLOW/
 	q1
 }
@@ -1815,6 +1815,24 @@ t op_end
 	s/.*/ERR:UNDERFLOW/
 	q1
 }
+/^[^\x01]*\x01[^\x01]*\x01\x02.*\nW:if$/ {
+	s/.*/ERR:UNDERFLOW/
+	q1
+}
+s/^Q:\([^\x01]*\)\x01Q:\([^\x01]*\)\x01true\x01\x02\(.*\)\nW:if$/\x02\x07\2\x04\3/
+t op_call_next
+s/^Q:\([^\x01]*\)\x01Q:\([^\x01]*\)\x01false\x01\x02\(.*\)\nW:if$/\x02\x07\1\x04\3/
+t op_call_next
+s/^Q:\([^\x01]*\)\x01Q:\([^\x01]*\)\x01true\x01\(.*\)\x01\x02\(.*\)\nW:if$/\3\x01\x02\x07\2\x04\4/
+t op_call_next
+s/^Q:\([^\x01]*\)\x01Q:\([^\x01]*\)\x01false\x01\(.*\)\x01\x02\(.*\)\nW:if$/\3\x01\x02\x07\1\x04\4/
+t op_call_next
+s/^[^Q][^\x01]*\x01.*\x01.*\x01\x02.*\nW:if$/ERR:IF_NON_QUOTE/
+t op_dispatch_fail
+s/^Q:[^\x01]*\x01[^Q][^\x01]*\x01.*\x01\x02.*\nW:if$/ERR:IF_NON_QUOTE/
+t op_dispatch_fail
+s/^Q:[^\x01]*\x01Q:[^\x01]*\x01.*\x01\x02.*\nW:if$/ERR:IF_NON_BOOL/
+t op_dispatch_fail
 s/^Q:\([^\x01]*\)\x01\x02\(.*\)\nW:call$/\x02\x07\1\x04\2/
 t op_call_next
 s/^Q:\([^\x01]*\)\x01\(.*\)\x01\x02\(.*\)\nW:call$/\2\x01\x02\x07\1\x04\3/
