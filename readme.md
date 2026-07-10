@@ -47,7 +47,7 @@ Every feature exists only if it serves that goal:
 
 ## Current Implemented Surface
 
-The current implementation is not a complete language yet. It is the working lower half of the interpreter plus the first source runner and the first real code-as-data object: lexical tokenization, stack primitives, arithmetic primitives, comparison primitives, underflow guards, a fully tail-preserving dispatcher for the current word surface, token-stream evaluation over that dispatcher, native source execution through `op_run`, nested quotation literal assembly, and quotation execution through `call`.
+The current implementation is not a complete language yet. It is the working lower half of the interpreter plus the first source runner and the first real code-as-data object: lexical tokenization, stack primitives, arithmetic primitives, comparison primitives, underflow guards, a fully tail-preserving dispatcher for the current word surface, token-stream evaluation over that dispatcher, native source execution through `op_run`, nested quotation literal assembly, quotation execution through `call`, and conditional quotation selection through `if`.
 
 Implemented now:
 - `123` lexes as `N:123`.
@@ -62,6 +62,7 @@ Implemented now:
 - `W:dup`, `W:drop`, `W:swap`, `W:over`, and `W:rot` dispatch to stack primitives.
 - `W:add`, `W:sub`, `W:eq`, `W:ne`, `W:lt`, `W:le`, `W:gt`, and `W:ge` dispatch to arithmetic and comparison primitives.
 - `W:call` consumes a `Q:` quotation value and executes its stored tagged token body against the current stack.
+- `W:if` consumes a condition and two `Q:` quotation values, then executes exactly one selected branch.
 - token streams can be evaluated by `op_eval`, one token per line, with the final SOH stack printed at end of input.
 - source can be executed directly by `op_run` inside the same `sed` program, so `4 5 add 2 sub` now runs from source and produces `7` without an external shell runner.
 - the native runner reuses the existing lexer recognition and changes only the token sink at `emit`; normal lex mode still prints tagged tokens, while run mode dispatches the recognized token.
@@ -73,18 +74,19 @@ Implemented now:
 - `[ 1 2 add ] call` executes the quotation body and produces `3`.
 - quotation execution preserves older stack tail, continues with following source, accepts empty quotations, reconstructs nested quotation values, and allows a called quotation to call an inner quotation.
 - `call` underflow fails with `ERR:UNDERFLOW`; calling a non-quotation fails with `ERR:CALL_NON_QUOTE`.
+- `true [ 1 ] [ 2 ] if` produces `1`, while the same program with `false` produces `2`.
+- `if` underflow fails with `ERR:UNDERFLOW`; invalid conditions fail with `ERR:IF_NON_BOOL`; invalid branches fail with `ERR:IF_NON_QUOTE`.
 - the evaluator has been verified across the current language surface: arithmetic, stack reordering, comparison, preserved tails, underflow, unknown words, malformed tokens, and multi line lexed input.
 - the native runner has been verified for source execution, stack preservation, multi line input, underflow, unknown word failure, quotation assembly, nested quotation assembly, quotation non-execution, empty quotations, and unterminated quotation failure.
 
 Not implemented yet:
-- `if`.
 - `while`.
 - recursion.
 - user defined words.
 - dictionary storage.
 - `mul`, `div`, and `mod`.
 
-This boundary is deliberate. The project grows by making each layer executable and verified before the next layer is allowed to depend on it. At this point source text can be run inside the same `sed` instance, the current primitive surface can be entered through one dispatcher boundary, and source fragments can become runtime values and can be re-entered as execution without leaving the interpreter. The evaluator owns tagged token streams, the runner owns source continuation and quotation capture, `call` owns quotation re-entry, the dispatcher owns one token plus the stack, and the primitive owns only the operands it was given. The current verifier prints 109 passing lines, not as a vanity count but as a pressure test that every layer still composes after quotation execution was added.
+This boundary is deliberate. The project grows by making each layer executable and verified before the next layer is allowed to depend on it. At this point source text can be run inside the same `sed` instance, the current primitive surface can be entered through one dispatcher boundary, and source fragments can become runtime values and can be re-entered as execution without leaving the interpreter. The evaluator owns tagged token streams, the runner owns source continuation and quotation capture, `call` owns quotation re-entry, `if` selects one quotation through the same call continuation, the dispatcher owns one token plus the stack, and the primitive owns only the operands it was given. The current verifier prints 117 passing lines, not as a vanity count but as a pressure test that every layer still composes after conditional execution was added.
 
 ## Lexical Constructs
 
@@ -187,6 +189,7 @@ Primitive word dispatch branches to the existing operation labels:
 - `W:over` -> `op_over`.
 - `W:rot` -> `op_rot`.
 - `W:call` -> the call re-entry path when the top stack item is a `Q:` value.
+- `W:if` -> the same call re-entry path after selecting one of two `Q:` values from a textual boolean.
 
 Arithmetic and comparison dispatch deliberately reuse the older pipe operations instead of rewriting them prematurely:
 - `W:add` extracts two SOH stack items, adapts them to `op_add`, then restores the tail.
@@ -200,6 +203,8 @@ Dispatcher failure states are explicit:
 - unknown words print `ERR:UNKNOWN_WORD` and exit nonzero.
 - malformed tokens print `ERR:BAD_TOKEN` and exits nonzero.
 - calling a non-quotation prints `ERR:CALL_NON_QUOTE` and exits nonzero.
+- a non-boolean `if` condition prints `ERR:IF_NON_BOOL` and exits nonzero.
+- a non-quotation `if` branch prints `ERR:IF_NON_QUOTE` and exits nonzero.
 
 ## Evaluator Loop
 
@@ -294,6 +299,7 @@ Current guard shapes:
 - 1 operand stack operations guard against empty stack via `/^$/`.
 - 2 operand stack operations guard against fewer than two SOH delimited items.
 - 3 operand `rot` guards against fewer than three SOH delimited items.
+- `if` guards against fewer than three SOH delimited operands before validating their types.
 - pipe based arithmetic and comparison operations guard against a missing pipe delimiter.
 - dispatcher arithmetic and comparison guards before attempting to extract two stack operands.
 
@@ -340,6 +346,9 @@ The verifier covers:
 - `call` underflow and non-quotation failure states.
 - `call` reconstruction of nested quotation values.
 - nested call execution through a called quotation.
+- true and false `if` branch selection.
+- `if` preservation of older stack tail and continuation with following source.
+- `if` underflow, non-boolean condition, and non-quotation branch failure states.
 - quotation literal assembly through the native runner.
 - quotation preservation of an older stack tail.
 - quotation non-execution.
@@ -347,7 +356,7 @@ The verifier covers:
 - nested quotation literals.
 - unterminated flat and nested quotation failure states.
 
-The current verifier prints 109 passing lines. The number itself is not a goal. It is a checkpoint: lexer, primitive operations, dispatcher, evaluator, native runner, quotation capture, and `call` now agree on the same machine encoding and the same stack laws.
+The current verifier prints 117 passing lines. The number itself is not a goal. It is a checkpoint: lexer, primitive operations, dispatcher, evaluator, native runner, quotation capture, `call`, and `if` now agree on the same machine encoding and the same stack laws.
 
 The test style is intentionally plain shell. Each function sets up one direct entry point into `sedit.sed`, runs one operation, compares exact output, prints a fixed `PASSED` or `FAILED` line, and returns a unique error code. This is not ornamentation. It is how the interpreter remains honest while the internal representation is still changing.
 
@@ -365,8 +374,9 @@ The interpreter therefore grows by small mechanical victories:
 - then runner entry when source itself must execute inside the same `sed` instance.
 - then quotation entry when source must become data without being executed.
 - then call entry when stored code data must become execution again.
+- then conditional entry when runtime data must choose which quotation is executed.
 
-`mul` is intentionally not forced at this point. The more rewarding current path has been the dispatcher, evaluator, native runner, quotation literal machinery, and `call`, because they connect working pieces into execution and code-as-data without disturbing the arithmetic core before it is ready. The next natural boundary is not more local arithmetic heroism, but conditional control over executable quotations.
+`mul` is intentionally not forced at this point. The more rewarding current path has been the dispatcher, evaluator, native runner, quotation literal machinery, and `call`, because they connect working pieces into execution and code-as-data without disturbing the arithmetic core before it is ready. The next natural boundary is not more local arithmetic heroism, but repeated quotation execution through `while`.
 
 ## Quoted Blocks
 
@@ -444,7 +454,24 @@ The call frame is protected by BEL. The saved caller continuation is separated f
 
 Failure remains explicit: `call` on an empty stack is `ERR:UNDERFLOW`, and `call` on a non-quotation value is `ERR:CALL_NON_QUOTE`.
 
-SEDIT is still not Turing complete at this boundary. `call` gives code-as-data re-entry, but not yet conditional choice or repetition. The next semantic boundary is `if`, followed by `while`.
+SEDIT is still not Turing complete at this boundary. `call` gives code-as-data re-entry and `if` gives conditional choice, but the language still has no unbounded repetition. The next semantic boundary is `while`.
+
+## If
+
+`if` is the first word for which runtime data chooses code. Its source stack effect is:
+
+```
+condition then-quotation else-quotation if
+```
+
+The condition must be exactly `true` or `false`, and both branches must be `Q:` values. `if` consumes all three control operands, discards the unselected quotation, and enters the selected quotation through the same BEL call continuation used by `call`. It does not introduce a second evaluator.
+
+```
+true [ 1 ] [ 2 ] if
+false [ 1 ] [ 2 ] if
+```
+
+produce `1` and `2` respectively. Older stack tail survives the selected branch, and execution resumes with the remaining source after that branch returns. Underflow produces `ERR:UNDERFLOW`; a non-boolean condition produces `ERR:IF_NON_BOOL`; a non-quotation branch produces `ERR:IF_NON_QUOTE`.
 
 ## Runtime Model
 
