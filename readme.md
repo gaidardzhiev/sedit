@@ -47,7 +47,7 @@ Every feature exists only if it serves that goal:
 
 ## Current Implemented Surface
 
-The current implementation is not a complete language yet. It is the working lower half of the interpreter plus the first source runner and the first real code-as-data object: lexical tokenization, stack primitives, arithmetic primitives, comparison primitives, underflow guards, a fully tail-preserving dispatcher for the current word surface, token-stream evaluation over that dispatcher, native source execution through `op_run`, nested quotation literal assembly, quotation execution through `call`, and conditional quotation selection through `if`.
+The current implementation is not feature complete, but its abstract language core is now Turing complete under the standard assumption that `sed` pattern and hold spaces are unbounded. It contains lexical tokenization, stack primitives, arithmetic primitives, comparison primitives, underflow guards, a fully tail-preserving dispatcher for the current word surface, token-stream evaluation over that dispatcher, native source execution through `op_run`, nested quotation literal assembly, quotation execution through `call`, conditional quotation selection through `if`, and repeated quotation execution through `while`.
 
 Implemented now:
 - `123` lexes as `N:123`.
@@ -63,6 +63,7 @@ Implemented now:
 - `W:add`, `W:sub`, `W:eq`, `W:ne`, `W:lt`, `W:le`, `W:gt`, and `W:ge` dispatch to arithmetic and comparison primitives.
 - `W:call` consumes a `Q:` quotation value and executes its stored tagged token body against the current stack.
 - `W:if` consumes a condition and two `Q:` quotation values, then executes exactly one selected branch.
+- `W:while` consumes condition and body quotations, repeatedly executes the condition, and executes the body while that condition returns `true`.
 - token streams can be evaluated by `op_eval`, one token per line, with the final SOH stack printed at end of input.
 - source can be executed directly by `op_run` inside the same `sed` program, so `4 5 add 2 sub` now runs from source and produces `7` without an external shell runner.
 - the native runner reuses the existing lexer recognition and changes only the token sink at `emit`; normal lex mode still prints tagged tokens, while run mode dispatches the recognized token.
@@ -76,17 +77,19 @@ Implemented now:
 - `call` underflow fails with `ERR:UNDERFLOW`; calling a non-quotation fails with `ERR:CALL_NON_QUOTE`.
 - `true [ 1 ] [ 2 ] if` produces `1`, while the same program with `false` produces `2`.
 - `if` underflow fails with `ERR:UNDERFLOW`; invalid conditions fail with `ERR:IF_NON_BOOL`; invalid branches fail with `ERR:IF_NON_QUOTE`.
+- `3 [ dup 0 gt ] [ 1 sub ] while` repeatedly executes its quotations and produces `0`.
+- `while` preserves older stack tail, permits nested control, and resumes the remaining source after termination.
+- `while` underflow fails with `ERR:UNDERFLOW`; invalid quotation operands fail with `ERR:WHILE_NON_QUOTE`; a condition that does not return a boolean fails with `ERR:WHILE_NON_BOOL`.
 - the evaluator has been verified across the current language surface: arithmetic, stack reordering, comparison, preserved tails, underflow, unknown words, malformed tokens, and multi line lexed input.
 - the native runner has been verified for source execution, stack preservation, multi line input, underflow, unknown word failure, quotation assembly, nested quotation assembly, quotation non-execution, empty quotations, and unterminated quotation failure.
 
 Not implemented yet:
-- `while`.
 - recursion.
 - user defined words.
 - dictionary storage.
 - `mul`, `div`, and `mod`.
 
-This boundary is deliberate. The project grows by making each layer executable and verified before the next layer is allowed to depend on it. At this point source text can be run inside the same `sed` instance, the current primitive surface can be entered through one dispatcher boundary, and source fragments can become runtime values and can be re-entered as execution without leaving the interpreter. The evaluator owns tagged token streams, the runner owns source continuation and quotation capture, `call` owns quotation re-entry, `if` selects one quotation through the same call continuation, the dispatcher owns one token plus the stack, and the primitive owns only the operands it was given. The current verifier prints 117 passing lines, not as a vanity count but as a pressure test that every layer still composes after conditional execution was added.
+This boundary is deliberate. The project grows by making each layer executable and verified before the next layer is allowed to depend on it. Source text can run inside one `sed` instance, source fragments can become runtime values, stored code can re-enter execution, runtime data can select code, and `while` can repeat quotation execution until a computed condition becomes false. The evaluator owns tagged token streams, the runner owns source continuation and quotation capture, `call` owns quotation re-entry, `if` owns conditional selection, `while` owns repetition, the dispatcher owns one token plus the stack, and the primitive owns only the operands it was given. The current verifier prints 129 passing lines, not as a vanity count but as a pressure test that every layer still composes after unbounded control entered the language.
 
 ## Lexical Constructs
 
@@ -107,7 +110,7 @@ This cycling is implemented with `D`, restarting the script against whatever rem
 
 ## Machine Encoding
 
-The interpreter represents runtime state as plain text in `sed`'s pattern space and hold space. Eight delimiter characters are reserved for internal structure. These characters are non printable ASCII control codes, unreachable from normal SEDIT source syntax, and must never appear in any user visible value or identifier. This is the one invariant the interpreter never violates!
+The interpreter represents runtime state as plain text in `sed`'s pattern space and hold space. Eleven delimiter characters are reserved for internal structure. These characters are non printable ASCII control codes, unreachable from normal SEDIT source syntax, and must never appear in any user visible value or identifier. This is the one invariant the interpreter never violates!
 
 | Code | Hex    | Name                  | Role                                              |
 |------|--------|-----------------------|---------------------------------------------------|
@@ -119,8 +122,11 @@ The interpreter represents runtime state as plain text in `sed`'s pattern space 
 | ACK  | `\x06` | Quote body separator  | Separates quote depth from accumulated quote body |
 | BEL  | `\x07` | Call frame marker     | Marks active quotation execution in the protected run frame |
 | BS   | `\x08` | Call quote separator  | Separates call-local quote depth from call-local quote body |
+| HT   | `\x09` | While condition marker | Marks return from execution of the retained condition quotation |
+| VT   | `\x0b` | While quotation separator | Separates the retained condition and body quotations |
+| FF   | `\x0c` | While body marker     | Marks return from execution of the retained body quotation |
 
-The current data stack uses SOH directly, with the top of stack at the left end. The reversal from the usual human drawing of a stack is intentional: `sed` anchors cheaply at the beginning of pattern space. The top item therefore appears first, followed by older items separated by SOH. In run mode, STX is not a stack item. It protects the remaining source from the data stack so that stack words cannot reorder, duplicate, or delete the future program. During quotation capture, ETX/EOT/ACK mark the private quote frame in hold space; ENQ is the separator stored inside the finished `Q:` value. During quotation execution, BEL marks the active call frame and BS separates call-local quote depth from the reconstructed nested quotation body.
+The current data stack uses SOH directly, with the top of stack at the left end. The reversal from the usual human drawing of a stack is intentional: `sed` anchors cheaply at the beginning of pattern space. The top item therefore appears first, followed by older items separated by SOH. In run mode, STX is not a stack item. It protects the remaining source from the data stack so that stack words cannot reorder, duplicate, or delete the future program. During quotation capture, ETX/EOT/ACK mark the private quote frame in hold space; ENQ is the separator stored inside the finished `Q:` value. During quotation execution, BEL marks the active call frame and BS separates call-local quote depth from the reconstructed nested quotation body. During `while`, HT and FF mark return from the condition and body quotations, while VT separates the two retained quotation bodies.
 
 Example stack after pushing `1`, then `2`, then `3`:
 
@@ -190,6 +196,7 @@ Primitive word dispatch branches to the existing operation labels:
 - `W:rot` -> `op_rot`.
 - `W:call` -> the call re-entry path when the top stack item is a `Q:` value.
 - `W:if` -> the same call re-entry path after selecting one of two `Q:` values from a textual boolean.
+- `W:while` -> the call re-entry path with a retained condition quotation, body quotation, and loop continuation.
 
 Arithmetic and comparison dispatch deliberately reuse the older pipe operations instead of rewriting them prematurely:
 - `W:add` extracts two SOH stack items, adapts them to `op_add`, then restores the tail.
@@ -205,6 +212,9 @@ Dispatcher failure states are explicit:
 - calling a non-quotation prints `ERR:CALL_NON_QUOTE` and exits nonzero.
 - a non-boolean `if` condition prints `ERR:IF_NON_BOOL` and exits nonzero.
 - a non-quotation `if` branch prints `ERR:IF_NON_QUOTE` and exits nonzero.
+- a non-quotation `while` operand prints `ERR:WHILE_NON_QUOTE` and exits nonzero.
+- a `while` condition that returns something other than `true` or `false` prints `ERR:WHILE_NON_BOOL` and exits nonzero.
+- a malformed internal loop continuation prints `ERR:BAD_WHILE_FRAME` and exits nonzero.
 
 ## Evaluator Loop
 
@@ -300,6 +310,7 @@ Current guard shapes:
 - 2 operand stack operations guard against fewer than two SOH delimited items.
 - 3 operand `rot` guards against fewer than three SOH delimited items.
 - `if` guards against fewer than three SOH delimited operands before validating their types.
+- `while` guards against fewer than two SOH delimited operands before validating both quotation types.
 - pipe based arithmetic and comparison operations guard against a missing pipe delimiter.
 - dispatcher arithmetic and comparison guards before attempting to extract two stack operands.
 
@@ -349,6 +360,10 @@ The verifier covers:
 - true and false `if` branch selection.
 - `if` preservation of older stack tail and continuation with following source.
 - `if` underflow, non-boolean condition, and non-quotation branch failure states.
+- `while` immediate termination, repeated countdown, older tail preservation, and continuation with following source.
+- `while` composition with `call`, `if`, and nested `while`.
+- `while` underflow, non-quotation operands, and non-boolean condition failure states.
+- multiplication written as a SEDIT program using `while`, rather than as an interpreter primitive.
 - quotation literal assembly through the native runner.
 - quotation preservation of an older stack tail.
 - quotation non-execution.
@@ -356,7 +371,7 @@ The verifier covers:
 - nested quotation literals.
 - unterminated flat and nested quotation failure states.
 
-The current verifier prints 117 passing lines. The number itself is not a goal. It is a checkpoint: lexer, primitive operations, dispatcher, evaluator, native runner, quotation capture, `call`, and `if` now agree on the same machine encoding and the same stack laws.
+The current verifier prints 129 passing lines. The number itself is not a goal. It is a checkpoint: lexer, primitive operations, dispatcher, evaluator, native runner, quotation capture, `call`, `if`, and `while` now agree on the same machine encoding and the same stack laws.
 
 The test style is intentionally plain shell. Each function sets up one direct entry point into `sedit.sed`, runs one operation, compares exact output, prints a fixed `PASSED` or `FAILED` line, and returns a unique error code. This is not ornamentation. It is how the interpreter remains honest while the internal representation is still changing.
 
@@ -375,8 +390,9 @@ The interpreter therefore grows by small mechanical victories:
 - then quotation entry when source must become data without being executed.
 - then call entry when stored code data must become execution again.
 - then conditional entry when runtime data must choose which quotation is executed.
+- then loop entry when runtime data must determine how long quotation execution continues.
 
-`mul` is intentionally not forced at this point. The more rewarding current path has been the dispatcher, evaluator, native runner, quotation literal machinery, and `call`, because they connect working pieces into execution and code-as-data without disturbing the arithmetic core before it is ready. The next natural boundary is not more local arithmetic heroism, but repeated quotation execution through `while`.
+`mul` is no longer required as the next primitive. The verifier now derives multiplication as a SEDIT program from stack operations, `add`, `sub`, comparison, and `while`. The next natural boundaries are language construction features such as user-defined words, dictionary storage, and recursion, not another prerequisite for computational completeness.
 
 ## Quoted Blocks
 
@@ -454,7 +470,7 @@ The call frame is protected by BEL. The saved caller continuation is separated f
 
 Failure remains explicit: `call` on an empty stack is `ERR:UNDERFLOW`, and `call` on a non-quotation value is `ERR:CALL_NON_QUOTE`.
 
-SEDIT is still not Turing complete at this boundary. `call` gives code-as-data re-entry and `if` gives conditional choice, but the language still has no unbounded repetition. The next semantic boundary is `while`.
+`call` alone does not establish Turing completeness. `if` adds conditional choice, and `while` below adds the unbounded repetition required to complete the control core.
 
 ## If
 
@@ -473,6 +489,40 @@ false [ 1 ] [ 2 ] if
 
 produce `1` and `2` respectively. Older stack tail survives the selected branch, and execution resumes with the remaining source after that branch returns. Underflow produces `ERR:UNDERFLOW`; a non-boolean condition produces `ERR:IF_NON_BOOL`; a non-quotation branch produces `ERR:IF_NON_QUOTE`.
 
+## While and Turing Completeness
+
+`while` is the first word for which the duration of execution is not fixed by the length of the source. Its source stack effect is:
+
+```
+condition-quotation body-quotation while
+```
+
+The condition quotation is executed first and must leave the textual boolean `true` or `false` at the top of the working stack. That boolean is consumed. `false` discards the retained quotations and returns to the remaining caller source. `true` executes the body quotation and then re-enters the same retained condition. Both quotations survive every iteration; older stack tail survives outside the loop frame.
+
+```
+3 [ dup 0 gt ] [ 1 sub ] while
+```
+
+produces `0`. The verifier also covers immediate false termination, source continuation, nested loops, `call` inside loop quotations, and `if` inside the body.
+
+The loop is not a separate evaluator. HT marks return from the condition quotation, FF marks return from the body quotation, and VT separates the retained condition and body token streams. Each quotation still enters the existing BEL call continuation, and every stored token still reaches `op_dispatch` through the same execution spine.
+
+This is the boundary at which the abstract SEDIT language becomes Turing complete. Under the standard theoretical assumption that pattern and hold space are unbounded, stack values can encode unbounded natural counters; `add` and `sub` provide increment and decrement; comparisons provide zero and order tests; `if` provides conditional finite control; quotations store finite program fragments; and `while` provides unbounded repetition. These operations are sufficient to encode a two-counter Minsky machine.
+
+The verifier includes multiplication written entirely as a SEDIT program:
+
+```
+3 4 0
+[ over 0 gt ]
+[ rot dup rot add rot 1 sub swap ]
+while
+swap drop swap drop
+```
+
+which produces `12`. This derived multiplication is evidence that the loop composes into new computation rather than merely repeating a fixed display action; the Turing-completeness claim rests on the counter-machine argument above, not on multiplication alone. As with every physical interpreter, an actual run is bounded by available memory; the claim concerns the abstract language model.
+
+Failure remains explicit. Fewer than two operands produce `ERR:UNDERFLOW`; either non-quotation operand produces `ERR:WHILE_NON_QUOTE`; a condition result other than `true` or `false` produces `ERR:WHILE_NON_BOOL`; and a malformed internal continuation produces `ERR:BAD_WHILE_FRAME`.
+
 ## Runtime Model
 
 The runtime model is intentionally minimal:
@@ -482,6 +532,7 @@ The runtime model is intentionally minimal:
 - finished quotation bodies encoded with ENQ-separated tagged tokens.
 - active call frames encoded with BEL and EOT.
 - call-local quotation reconstruction encoded with BS and ACK.
+- active `while` continuations encoded with HT, VT, and FF.
 - future dictionary records still to be assigned a stable final discipline.
 - pattern space as active state.
 - hold space as auxiliary state.
