@@ -1,0 +1,773 @@
+1 43 5 0
+
+[ dup 8 lt ]
+[
+	dup 0 eq
+	[
+		drop
+		dup 5 eq
+		[
+			rot
+			6 0
+			[ over 0 gt ]
+			[
+				rot
+				dup
+				rot
+				add
+				rot
+				1 sub
+				swap
+			]
+			while
+			swap drop
+			swap drop
+			swap
+			add
+			swap
+			dup 1 eq
+			[
+				drop
+				1
+				0
+			]
+			[
+				0
+				[ over 6 ge ]
+				[
+					swap
+					6 sub
+					swap
+					1 add
+				]
+				while
+				swap
+			]
+			if
+			0
+		]
+		[
+			dup 3 eq
+			[
+				rot
+				6 0
+				[ over 0 gt ]
+				[
+					rot
+					dup
+					rot
+					add
+					rot
+					1 sub
+					swap
+				]
+				while
+				swap drop
+				swap drop
+				swap
+				add
+				swap
+				dup 1 eq
+				[
+					drop
+					1
+					0
+				]
+				[
+					0
+					[ over 6 ge ]
+					[
+						swap
+						6 sub
+						swap
+						1 add
+					]
+					while
+					swap
+				]
+				if
+				0
+			]
+			[
+				dup 4 eq
+				[
+					rot
+					6 0
+					[ over 0 gt ]
+					[
+						rot
+						dup
+						rot
+						add
+						rot
+						1 sub
+						swap
+					]
+					while
+					swap drop
+					swap drop
+					swap
+					add
+					swap
+					dup 1 eq
+					[
+						drop
+						1
+						0
+					]
+					[
+						0
+						[ over 6 ge ]
+						[
+							swap
+							6 sub
+							swap
+							1 add
+						]
+						while
+						swap
+					]
+					if
+					0
+				]
+				[
+					dup 1 eq
+					[
+						drop
+						3
+						rot
+						6 0
+						[ over 0 gt ]
+						[
+							rot
+							dup
+							rot
+							add
+							rot
+							1 sub
+							swap
+						]
+						while
+						swap drop
+						swap drop
+						swap
+						add
+						swap
+						dup 1 eq
+						[
+							drop
+							1
+							0
+						]
+						[
+							0
+							[ over 6 ge ]
+							[
+								swap
+								6 sub
+								swap
+								1 add
+							]
+							while
+							swap
+						]
+						if
+						1
+					]
+					[
+						dup 2 eq
+						[
+							drop
+							4
+							rot
+							6 0
+							[ over 0 gt ]
+							[
+								rot
+								dup
+								rot
+								add
+								rot
+								1 sub
+								swap
+							]
+							while
+							swap drop
+							swap drop
+							swap
+							add
+							swap
+							dup 1 eq
+							[
+								drop
+								1
+								0
+							]
+							[
+								0
+								[ over 6 ge ]
+								[
+									swap
+									6 sub
+									swap
+									1 add
+								]
+								while
+								swap
+							]
+							if
+							2
+						]
+						[
+							dup 0 eq
+							[
+								8
+							]
+							[
+								9
+							]
+							if
+						]
+						if
+					]
+					if
+				]
+				if
+			]
+			if
+		]
+		if
+	]
+	[
+		dup 1 eq
+		[
+			drop
+			dup 0 eq
+			[
+				swap
+				6 0
+				[ over 0 gt ]
+				[
+					rot
+					dup
+					rot
+					add
+					rot
+					1 sub
+					swap
+				]
+				while
+				swap drop
+				swap drop
+				swap
+				add
+				swap
+				dup 1 eq
+				[
+					drop
+					1
+					0
+				]
+				[
+					0
+					[ over 6 ge ]
+					[
+						swap
+						6 sub
+						swap
+						1 add
+					]
+					while
+					swap
+				]
+				if
+				rot
+				swap
+				3
+			]
+			[
+				rot
+				6 0
+				[ over 0 gt ]
+				[
+					rot
+					dup
+					rot
+					add
+					rot
+					1 sub
+					swap
+				]
+				while
+				swap drop
+				swap drop
+				swap
+				add
+				swap
+				dup 1 eq
+				[
+					drop
+					1
+					0
+				]
+				[
+					0
+					[ over 6 ge ]
+					[
+						swap
+						6 sub
+						swap
+						1 add
+					]
+					while
+					swap
+				]
+				if
+				1
+			]
+			if
+		]
+		[
+			dup 2 eq
+			[
+				drop
+				dup 0 eq
+				[
+					swap
+					6 0
+					[ over 0 gt ]
+					[
+						rot
+						dup
+						rot
+						add
+						rot
+						1 sub
+						swap
+					]
+					while
+					swap drop
+					swap drop
+					swap
+					add
+					swap
+					dup 1 eq
+					[
+						drop
+						1
+						0
+					]
+					[
+						0
+						[ over 6 ge ]
+						[
+							swap
+							6 sub
+							swap
+							1 add
+						]
+						while
+						swap
+					]
+					if
+					rot
+					swap
+					4
+				]
+				[
+					rot
+					6 0
+					[ over 0 gt ]
+					[
+						rot
+						dup
+						rot
+						add
+						rot
+						1 sub
+						swap
+					]
+					while
+					swap drop
+					swap drop
+					swap
+					add
+					swap
+					dup 1 eq
+					[
+						drop
+						1
+						0
+					]
+					[
+						0
+						[ over 6 ge ]
+						[
+							swap
+							6 sub
+							swap
+							1 add
+						]
+						while
+						swap
+					]
+					if
+					2
+				]
+				if
+			]
+			[
+				dup 3 eq
+				[
+					drop
+					dup 3 eq
+					[
+						swap
+						6 0
+						[ over 0 gt ]
+						[
+							rot
+							dup
+							rot
+							add
+							rot
+							1 sub
+							swap
+						]
+						while
+						swap drop
+						swap drop
+						swap
+						add
+						swap
+						dup 1 eq
+						[
+							drop
+							1
+							0
+						]
+						[
+							0
+							[ over 6 ge ]
+							[
+								swap
+								6 sub
+								swap
+								1 add
+							]
+							while
+							swap
+						]
+						if
+						rot
+						swap
+						3
+					]
+					[
+						dup 4 eq
+						[
+							swap
+							6 0
+							[ over 0 gt ]
+							[
+								rot
+								dup
+								rot
+								add
+								rot
+								1 sub
+								swap
+							]
+							while
+							swap drop
+							swap drop
+							swap
+							add
+							swap
+							dup 1 eq
+							[
+								drop
+								1
+								0
+							]
+							[
+								0
+								[ over 6 ge ]
+								[
+									swap
+									6 sub
+									swap
+									1 add
+								]
+								while
+								swap
+							]
+							if
+							rot
+							swap
+							3
+						]
+						[
+							dup 1 eq
+							[
+								drop
+								3
+								5
+							]
+							[
+								dup 2 eq
+								[
+									9
+								]
+								[
+									dup 5 eq
+									[
+										8
+									]
+									[
+										9
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						if
+					]
+					if
+				]
+				[
+					dup 4 eq
+					[
+						drop
+						dup 3 eq
+						[
+							swap
+							6 0
+							[ over 0 gt ]
+							[
+								rot
+								dup
+								rot
+								add
+								rot
+								1 sub
+								swap
+							]
+							while
+							swap drop
+							swap drop
+							swap
+							add
+							swap
+							dup 1 eq
+							[
+								drop
+								1
+								0
+							]
+							[
+								0
+								[ over 6 ge ]
+								[
+									swap
+									6 sub
+									swap
+									1 add
+								]
+								while
+								swap
+							]
+							if
+							rot
+							swap
+							4
+						]
+						[
+							dup 4 eq
+							[
+								swap
+								6 0
+								[ over 0 gt ]
+								[
+									rot
+									dup
+									rot
+									add
+									rot
+									1 sub
+									swap
+								]
+								while
+								swap drop
+								swap drop
+								swap
+								add
+								swap
+								dup 1 eq
+								[
+									drop
+									1
+									0
+								]
+								[
+									0
+									[ over 6 ge ]
+									[
+										swap
+										6 sub
+										swap
+										1 add
+									]
+									while
+									swap
+								]
+								if
+								rot
+								swap
+								4
+							]
+							[
+								dup 2 eq
+								[
+									drop
+									4
+									5
+								]
+								[
+									dup 1 eq
+									[
+										9
+									]
+									[
+										dup 5 eq
+										[
+											8
+										]
+										[
+											9
+										]
+										if
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						if
+					]
+					[
+						dup 5 eq
+						[
+							drop
+							dup 5 eq
+							[
+								rot
+								6 0
+								[ over 0 gt ]
+								[
+									rot
+									dup
+									rot
+									add
+									rot
+									1 sub
+									swap
+								]
+								while
+								swap drop
+								swap drop
+								swap
+								add
+								swap
+								dup 1 eq
+								[
+									drop
+									1
+									0
+								]
+								[
+									0
+									[ over 6 ge ]
+									[
+										swap
+										6 sub
+										swap
+										1 add
+									]
+									while
+									swap
+								]
+								if
+								0
+							]
+							[
+								swap
+								6 0
+								[ over 0 gt ]
+								[
+									rot
+									dup
+									rot
+									add
+									rot
+									1 sub
+									swap
+								]
+								while
+								swap drop
+								swap drop
+								swap
+								add
+								swap
+								dup 1 eq
+								[
+									drop
+									1
+									0
+								]
+								[
+									0
+									[ over 6 ge ]
+									[
+										swap
+										6 sub
+										swap
+										1 add
+									]
+									while
+									swap
+								]
+								if
+								rot
+								swap
+								5
+							]
+							if
+						]
+						[
+							9
+						]
+						if
+					]
+					if
+				]
+				if
+			]
+			if
+		]
+		if
+	]
+	if
+]
+while
+
+8 eq
+swap drop
+swap drop
+swap drop
+[ 1 ]
+[ 0 ]
+if
