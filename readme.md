@@ -555,6 +555,23 @@ With the initial values 1071 and 462, the program produces:
 
 The loop continues while the two values differ. Each iteration compares the pair and uses `if` to subtract the smaller value from the larger. The transformation changes the current pair while preserving its greatest common divisor. Because one positive value strictly decreases on every iteration, the process eventually reaches two equal values, and that shared value is the result. The example demonstrates quotation controlled repetition, runtime branch selection, pair state transformation, invariant preservation, and termination by descent. Unlike factorial, which constructs a larger operation from nested loops, this program expresses the correctness argument of a classical algorithm directly through the evolution of its stack state.
 
+### Two-Counter Minsky Machine
+
+[examples/two_counter_minsky.sedit](examples/two_counter_minsky.sedit) encodes a finite control machine with one program counter and two unbounded natural counters:
+
+```sh
+sed -e 'b op_run' -f sedit.sed examples/two_counter_minsky.sedit
+```
+
+The program produces:
+
+```text
+8
+```
+
+Its runtime state contains a program counter, counter one, and counter zero. State zero performs a decrement with zero test on counter zero. If the counter is already zero, execution enters the halt state. Otherwise it decrements counter zero, increments counter one, and transfers control to state one. State one increments counter one once more and returns control to state zero. Starting from counter zero equal to 4 and counter one equal to 0, each unit removed from the first counter causes two increments of the second. The machine therefore halts with counter zero equal to 0 and counter one equal to 8. This example directly exercises the two primitive instructions of a Minsky machine: increment followed by a jump, and decrement with a zero-dependent jump. The finite control state is represented by the program counter, the counters are ordinary stack values, and `while` repeatedly executes the instruction decoder until the halt state is reached. Unlike factorial and Euclid, this program does not merely demonstrate that SEDIT can express a nontrivial algorithm. It embodies the computational model used in the Turing completeness argument itself.
+
+
 ## Runtime Model
 
 The runtime model is intentionally minimal:
