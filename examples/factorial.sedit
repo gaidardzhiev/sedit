@@ -1,0 +1,32 @@
+5 1
+
+[ over 1 gt ]
+
+[
+	over 0
+
+	[ over 0 gt ]
+
+	[
+		rot
+		dup
+		rot
+		add
+		rot
+		1 sub
+		swap
+	]
+
+	while
+
+	swap drop
+	swap drop
+
+	swap
+	1 sub
+	swap
+]
+
+while
+
+swap drop
