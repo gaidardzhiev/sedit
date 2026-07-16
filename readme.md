@@ -523,6 +523,23 @@ which produces `12`. This derived multiplication is evidence that the loop compo
 
 Failure remains explicit. Fewer than two operands produce `ERR:UNDERFLOW`; either non-quotation operand produces `ERR:WHILE_NON_QUOTE`; a condition result other than `true` or `false` produces `ERR:WHILE_NON_BOOL`; and a malformed internal continuation produces `ERR:BAD_WHILE_FRAME`.
 
+## Example Programs
+
+Nontrivial SEDIT programs live under `examples/`. They are ordinary SEDIT source files executed through the native runner:
+
+```sh
+sed -e 'b op_run' -f sedit.sed examples/factorial.sedit
+```
+
+`examples/factorial.sedit` computes `5!` and produces:
+
+```
+120
+```
+
+The program does not use a multiplication primitive. Its inner `while` derives multiplication through repeated addition, while its outer `while` repeatedly multiplies the accumulator by a decreasing counter. This example exercises nested quotations, nested loops, comparison controlled termination, stack state preservation, and source execution through the native runner. It demonstrates that the Turing complete control core composes into nontrivial programs rather than merely satisfying isolated interpreter tests.
+
+
 ## Runtime Model
 
 The runtime model is intentionally minimal:
