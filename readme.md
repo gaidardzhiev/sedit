@@ -531,7 +531,7 @@ Nontrivial SEDIT programs live under `examples/`. They are ordinary SEDIT source
 sed -e 'b op_run' -f sedit.sed examples/factorial.sedit
 ```
 
-`examples/factorial.sedit` computes `5!` and produces:
+[examples/factorial.sedit](examples/factorial.sedit) computes `5!` and produces:
 
 ```
 120
