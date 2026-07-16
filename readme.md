@@ -571,6 +571,22 @@ The program produces:
 
 Its runtime state contains a program counter, counter one, and counter zero. State zero performs a decrement with zero test on counter zero. If the counter is already zero, execution enters the halt state. Otherwise it decrements counter zero, increments counter one, and transfers control to state one. State one increments counter one once more and returns control to state zero. Starting from counter zero equal to 4 and counter one equal to 0, each unit removed from the first counter causes two increments of the second. The machine therefore halts with counter zero equal to 0 and counter one equal to 8. This example directly exercises the two primitive instructions of a Minsky machine: increment followed by a jump, and decrement with a zero-dependent jump. The finite control state is represented by the program counter, the counters are ordinary stack values, and `while` repeatedly executes the instruction decoder until the halt state is reached. Unlike factorial and Euclid, this program does not merely demonstrate that SEDIT can express a nontrivial algorithm. It embodies the computational model used in the Turing completeness argument itself.
 
+### Palindrome Turing Machine
+
+[examples/palindrome_tm.sedit](examples/palindrome_tm.sedit) implements a palindrome recognizing Turing machine using only the current SEDIT language core:
+
+```sh
+sed -e 'b op_run' -f sedit.sed examples/palindrome_tm.sedit
+```
+
+The included palindrome input produces:
+
+```text
+1
+```
+
+The live machine configuration contains a finite control state, a current tape symbol, and two encoded tape halves. The left and right halves are represented as base-6 numerical stacks with permanent sentinels, allowing the simulated tape to grow in either direction. Moving the head to the right pushes the current symbol onto the left tape half and pops the next symbol from the right tape half. Moving left performs the inverse operation. Tape push is derived from multiplication by six and addition, while tape pop derives quotient and remainder through repeated subtraction. The tape alphabet contains blank, A, B, crossed A, crossed B, and the left marker. The machine repeatedly finds the leftmost uncrossed symbol, records whether it was A or B in the finite control state, crosses it out, scans to the right edge, checks the corresponding final symbol, crosses that symbol, and returns to the left marker. Execution ends in an explicit accept or reject state. The included palindrome returns 1, and the corresponding non palindrome test returns 0. This example establishes the tape idiom required for more general machines. It demonstrates explicit state transitions, symbol reading and writing, bidirectional head movement, blank extension, and halting behavior inside ordinary SEDIT source.
+
 
 ## Runtime Model
 
