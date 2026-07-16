@@ -1,0 +1,37 @@
+4 0 0
+
+[ dup 2 ne ]
+
+[
+	dup 0 eq
+
+	[
+		drop
+		over 0 eq
+
+		[
+			2
+		]
+
+		[
+			1 add
+			swap 1 sub swap
+			1
+		]
+
+		if
+	]
+
+	[
+		drop
+		1 add
+		0
+	]
+
+	if
+]
+
+while
+
+drop
+swap drop
