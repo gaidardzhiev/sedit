@@ -539,6 +539,21 @@ sed -e 'b op_run' -f sedit.sed examples/factorial.sedit
 
 The program does not use a multiplication primitive. Its inner `while` derives multiplication through repeated addition, while its outer `while` repeatedly multiplies the accumulator by a decreasing counter. This example exercises nested quotations, nested loops, comparison controlled termination, stack state preservation, and source execution through the native runner. It demonstrates that the Turing complete control core composes into nontrivial programs rather than merely satisfying isolated interpreter tests.
 
+### Euclidean GCD
+
+`examples/euclidean_gcd.sedit` implements Euclid’s subtractive greatest common divisor algorithm:
+
+```sh id="x8k2k7"
+sed -e 'b op_run' -f sedit.sed examples/euclidean_gcd.sedit
+```
+
+With the initial values 1071 and 462, the program produces:
+
+```id="20rq85"
+21
+```
+
+The loop continues while the two values differ. Each iteration compares the pair and uses `if` to subtract the smaller value from the larger. The transformation changes the current pair while preserving its greatest common divisor. Because one positive value strictly decreases on every iteration, the process eventually reaches two equal values, and that shared value is the result. The example demonstrates quotation controlled repetition, runtime branch selection, pair state transformation, invariant preservation, and termination by descent. Unlike factorial, which constructs a larger operation from nested loops, this program expresses the correctness argument of a classical algorithm directly through the evolution of its stack state.
 
 ## Runtime Model
 
