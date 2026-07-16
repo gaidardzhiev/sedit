@@ -525,7 +525,7 @@ Failure remains explicit. Fewer than two operands produce `ERR:UNDERFLOW`; eithe
 
 ## Example Programs
 
-Nontrivial SEDIT programs live under `examples/`. They are ordinary SEDIT source files executed through the native runner:
+Nontrivial SEDIT programs live under [examples/](examples/). They are ordinary SEDIT source files executed through the native runner:
 
 ```sh
 sed -e 'b op_run' -f sedit.sed examples/factorial.sedit
@@ -541,7 +541,7 @@ The program does not use a multiplication primitive. Its inner `while` derives m
 
 ### Euclidean GCD
 
-`examples/euclidean_gcd.sedit` implements Euclid’s subtractive greatest common divisor algorithm:
+[examples/euclidean_gcd.sedit](examples/euclidean_gcd.sedit) implements Euclid’s subtractive greatest common divisor algorithm:
 
 ```sh id="x8k2k7"
 sed -e 'b op_run' -f sedit.sed examples/euclidean_gcd.sedit
