@@ -1,0 +1,24 @@
+1071 462
+
+[ over over ne ]
+
+[
+	over over gt
+
+	[
+		over over sub
+		rot drop
+		swap
+	]
+
+	[
+		over over swap sub
+		swap drop
+	]
+
+	if
+]
+
+while
+
+drop
