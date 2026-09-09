@@ -1,12 +1,12 @@
 # SEDIT
 
-SEDIT is a stack first programming language whose interpreter is written in `sed`. The project treats `sed` not as a toy text filter but as a rigorous computational substrate: its pattern space becomes the active execution state, its hold space becomes auxiliary memory, and its branching and substitution commands become the control machinery of a real interpreter.
+SEDIT is a stack first programming language whose interpreter is written in `sed`. The project treats `sed` not as a text filter but as a rigorous computational substrate: pattern space becomes the active execution state, hold space becomes auxiliary memory, and branching and substitution commands become the control machinery of a real interpreter.
 
 ## On the Inversion of Method
 
-A language implemented in `sed` is not a novelty for its own sake. It is an inquiry into whether a stream editor, with only line oriented transformation, two persistent buffers, and a small command vocabulary, can sustain the architecture of a higher order language. SEDIT answers that question by building a stack language on top of `sed`'s own primitives, so that the interpreter and the interpreted language arise from the same formal economy.
+A language implemented in `sed` is not a novelty for its own sake, but an inquiry into whether a stream editor, with only line oriented transformation, two persistent buffers, and a small command vocabulary, can sustain the architecture of a higher order language. SEDIT answers that question by building a stack language on top of `sed`'s own primitives, so that the interpreter and the interpreted language arise from the same formal economy.
 
-The result is a peculiar but disciplined recursion: `sed` edits text, SEDIT manipulates a stack, and the interpreter itself is expressed through `sed`'s transformation cycle.
+The result is a peculiary disciplined recursion: `sed` edits text, SEDIT manipulates a stack, and the interpreter itself is expressed through `sed`'s transformation cycle.
 
 ## The Principle
 
