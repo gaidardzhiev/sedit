@@ -1,0 +1,880 @@
+"pow10"
+[
+	dup 0 eq
+	[ drop 1 ]
+	[
+		dup 2 mod 0 eq
+		[ 2 div pow10 dup mul ]
+		[ 1 sub pow10 10 mul ]
+		if
+	]
+	if
+]
+def
+
+"emit"
+[
+	dup 5000 lt
+	[
+		over 1000 div 10000 mod
+		dup 1000 mod 999 lt
+		[ 1000 div over 1000 div eq ]
+		[ drop false ]
+		if
+	]
+	[ false ]
+	if
+	[ drop 1000 add ]
+	[ swap dup 1000 mod 1 add swap 1000 div 10000 mul rot add 1000 mul add ]
+	if
+]
+def
+
+"+" [ 1001 emit ] def
+"-" [ 2001 emit ] def
+">" [ 3001 emit ] def
+"<" [ 4001 emit ] def
+"." [ 7000 emit ] def
+"," [ 8000 emit ] def
+
+"loop"
+[
+	swap 5000 emit
+	dup 1000 mod
+	rot rot swap
+	call
+	dup 1000 mod
+	rot sub
+	dup 4 mul pow10
+	mul 1000 mul add
+	6000 emit
+]
+def
+
+"assemble"
+[
+	1000 div 0 swap
+	[ dup 0 gt ]
+	[ dup 10000 mod rot 10000 mul add swap 10000 div ]
+	while
+	drop
+]
+def
+
+"cell.inc"
+[ rot swap 1000 mod over 1000 mod add 256 mod swap 1000 div 1000 mul add swap ]
+def
+
+"cell.dec"
+[ rot swap 1000 mod over 1000 mod 1024 add swap sub 256 mod swap 1000 div 1000 mul add swap ]
+def
+
+"head.right1"
+[ over 1000 div 1000 mod swap 1000 mul add swap dup 1000 mod 1 add swap 1000000 div 1000 mul add swap ]
+def
+
+"head.left1"
+[ dup 1000 mod swap 1000 div rot rot swap dup 1000 mod swap 1000 div 1000 mul rot add 1000 mul swap 1 sub add swap ]
+def
+
+"head.right"
+[
+	rot 10000 mul add swap rot rot
+	dup 10000 mod swap 10000 div swap 1000 mod
+	[ dup 0 gt ]
+	[ 1 sub rot rot head.right1 rot ]
+	while
+	drop rot
+]
+def
+
+"head.left"
+[
+	rot 10000 mul add swap rot rot
+	dup 10000 mod swap 10000 div swap 1000 mod
+	[ dup 0 gt ]
+	[ 1 sub rot rot head.left1 rot ]
+	while
+	drop rot
+]
+def
+
+"loop.open"
+[
+	rot dup 1000 mod rot 1000 mul add rot swap
+	dup 1000 mod 0 eq
+	[ 1000 div 1000 mod 1 add 4 mul pow10 div ]
+	[
+		1000 div swap 10000 mul add
+		dup 1000 mod 4 mul pow10
+		over 10000 div over mod
+		rot rot mul add
+	]
+	if
+]
+def
+
+"cell.out"
+[
+	drop rot rot
+	over 1000 mod
+	over over 3 mul 3 add pow10 mod
+	rot rot
+	over over 3 mul 3 add pow10 div 1000 mul
+	rot 1000 mod add
+	swap 3 mul 3 add pow10 mul add
+	rot
+]
+def
+
+"cell.in"
+[ drop swap 1000 div 1000 mul swap ]
+def
+
+"step"
+[
+	dup 10000 mod swap 10000 div swap
+	dup 1000 div
+	dup 1 eq
+	[ drop cell.inc ]
+	[
+		dup 2 eq
+		[ drop cell.dec ]
+		[
+			dup 3 eq
+			[ drop head.right ]
+			[
+				dup 4 eq
+				[ drop head.left ]
+				[
+					dup 5 eq
+					[ drop loop.open ]
+					[
+						dup 7 eq
+						[ drop cell.out ]
+						[
+							8 eq
+							[ cell.in ]
+							[ drop ]
+							if
+						]
+						if
+					]
+					if
+				]
+				if
+			]
+			if
+		]
+		if
+	]
+	if
+]
+def
+
+"chr"
+[
+	dup 10 eq
+	[
+		drop "\n"
+	]
+	[
+		dup 32 lt
+		over 126 gt
+		[ drop true ] [ ] if
+		[
+			drop "?"
+		]
+		[
+			dup 79 lt
+			[
+				dup 55 lt
+				[
+					dup 43 lt
+					[
+						dup 37 lt
+						[
+							dup 34 lt
+							[
+								dup 33 lt
+								[
+									drop " "
+								]
+								[
+									drop "!"
+								]
+								if
+							]
+							[
+								dup 35 lt
+								[
+									drop "?"
+								]
+								[
+									dup 36 lt
+									[
+										drop "#"
+									]
+									[
+										drop "$"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						[
+							dup 40 lt
+							[
+								dup 38 lt
+								[
+									drop "%"
+								]
+								[
+									dup 39 lt
+									[
+										drop "&"
+									]
+									[
+										drop "'"
+									]
+									if
+								]
+								if
+							]
+							[
+								dup 41 lt
+								[
+									drop "("
+								]
+								[
+									dup 42 lt
+									[
+										drop ")"
+									]
+									[
+										drop "*"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						if
+					]
+					[
+						dup 49 lt
+						[
+							dup 46 lt
+							[
+								dup 44 lt
+								[
+									drop "+"
+								]
+								[
+									dup 45 lt
+									[
+										drop ","
+									]
+									[
+										drop "-"
+									]
+									if
+								]
+								if
+							]
+							[
+								dup 47 lt
+								[
+									drop "."
+								]
+								[
+									dup 48 lt
+									[
+										drop "/"
+									]
+									[
+										drop "0"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						[
+							dup 52 lt
+							[
+								dup 50 lt
+								[
+									drop "1"
+								]
+								[
+									dup 51 lt
+									[
+										drop "2"
+									]
+									[
+										drop "3"
+									]
+									if
+								]
+								if
+							]
+							[
+								dup 53 lt
+								[
+									drop "4"
+								]
+								[
+									dup 54 lt
+									[
+										drop "5"
+									]
+									[
+										drop "6"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						if
+					]
+					if
+				]
+				[
+					dup 67 lt
+					[
+						dup 61 lt
+						[
+							dup 58 lt
+							[
+								dup 56 lt
+								[
+									drop "7"
+								]
+								[
+									dup 57 lt
+									[
+										drop "8"
+									]
+									[
+										drop "9"
+									]
+									if
+								]
+								if
+							]
+							[
+								dup 59 lt
+								[
+									drop ":"
+								]
+								[
+									dup 60 lt
+									[
+										drop ";"
+									]
+									[
+										drop "<"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						[
+							dup 64 lt
+							[
+								dup 62 lt
+								[
+									drop "="
+								]
+								[
+									dup 63 lt
+									[
+										drop ">"
+									]
+									[
+										drop "?"
+									]
+									if
+								]
+								if
+							]
+							[
+								dup 65 lt
+								[
+									drop "@"
+								]
+								[
+									dup 66 lt
+									[
+										drop "A"
+									]
+									[
+										drop "B"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						if
+					]
+					[
+						dup 73 lt
+						[
+							dup 70 lt
+							[
+								dup 68 lt
+								[
+									drop "C"
+								]
+								[
+									dup 69 lt
+									[
+										drop "D"
+									]
+									[
+										drop "E"
+									]
+									if
+								]
+								if
+							]
+							[
+								dup 71 lt
+								[
+									drop "F"
+								]
+								[
+									dup 72 lt
+									[
+										drop "G"
+									]
+									[
+										drop "H"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						[
+							dup 76 lt
+							[
+								dup 74 lt
+								[
+									drop "I"
+								]
+								[
+									dup 75 lt
+									[
+										drop "J"
+									]
+									[
+										drop "K"
+									]
+									if
+								]
+								if
+							]
+							[
+								dup 77 lt
+								[
+									drop "L"
+								]
+								[
+									dup 78 lt
+									[
+										drop "M"
+									]
+									[
+										drop "N"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						if
+					]
+					if
+				]
+				if
+			]
+			[
+				dup 103 lt
+				[
+					dup 91 lt
+					[
+						dup 85 lt
+						[
+							dup 82 lt
+							[
+								dup 80 lt
+								[
+									drop "O"
+								]
+								[
+									dup 81 lt
+									[
+										drop "P"
+									]
+									[
+										drop "Q"
+									]
+									if
+								]
+								if
+							]
+							[
+								dup 83 lt
+								[
+									drop "R"
+								]
+								[
+									dup 84 lt
+									[
+										drop "S"
+									]
+									[
+										drop "T"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						[
+							dup 88 lt
+							[
+								dup 86 lt
+								[
+									drop "U"
+								]
+								[
+									dup 87 lt
+									[
+										drop "V"
+									]
+									[
+										drop "W"
+									]
+									if
+								]
+								if
+							]
+							[
+								dup 89 lt
+								[
+									drop "X"
+								]
+								[
+									dup 90 lt
+									[
+										drop "Y"
+									]
+									[
+										drop "Z"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						if
+					]
+					[
+						dup 97 lt
+						[
+							dup 94 lt
+							[
+								dup 92 lt
+								[
+									drop "["
+								]
+								[
+									dup 93 lt
+									[
+										drop "\"
+									]
+									[
+										drop "]"
+									]
+									if
+								]
+								if
+							]
+							[
+								dup 95 lt
+								[
+									drop "^"
+								]
+								[
+									dup 96 lt
+									[
+										drop "_"
+									]
+									[
+										drop "`"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						[
+							dup 100 lt
+							[
+								dup 98 lt
+								[
+									drop "a"
+								]
+								[
+									dup 99 lt
+									[
+										drop "b"
+									]
+									[
+										drop "c"
+									]
+									if
+								]
+								if
+							]
+							[
+								dup 101 lt
+								[
+									drop "d"
+								]
+								[
+									dup 102 lt
+									[
+										drop "e"
+									]
+									[
+										drop "f"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						if
+					]
+					if
+				]
+				[
+					dup 115 lt
+					[
+						dup 109 lt
+						[
+							dup 106 lt
+							[
+								dup 104 lt
+								[
+									drop "g"
+								]
+								[
+									dup 105 lt
+									[
+										drop "h"
+									]
+									[
+										drop "i"
+									]
+									if
+								]
+								if
+							]
+							[
+								dup 107 lt
+								[
+									drop "j"
+								]
+								[
+									dup 108 lt
+									[
+										drop "k"
+									]
+									[
+										drop "l"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						[
+							dup 112 lt
+							[
+								dup 110 lt
+								[
+									drop "m"
+								]
+								[
+									dup 111 lt
+									[
+										drop "n"
+									]
+									[
+										drop "o"
+									]
+									if
+								]
+								if
+							]
+							[
+								dup 113 lt
+								[
+									drop "p"
+								]
+								[
+									dup 114 lt
+									[
+										drop "q"
+									]
+									[
+										drop "r"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						if
+					]
+					[
+						dup 121 lt
+						[
+							dup 118 lt
+							[
+								dup 116 lt
+								[
+									drop "s"
+								]
+								[
+									dup 117 lt
+									[
+										drop "t"
+									]
+									[
+										drop "u"
+									]
+									if
+								]
+								if
+							]
+							[
+								dup 119 lt
+								[
+									drop "v"
+								]
+								[
+									dup 120 lt
+									[
+										drop "w"
+									]
+									[
+										drop "x"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						[
+							dup 124 lt
+							[
+								dup 122 lt
+								[
+									drop "y"
+								]
+								[
+									dup 123 lt
+									[
+										drop "z"
+									]
+									[
+										drop "{"
+									]
+									if
+								]
+								if
+							]
+							[
+								dup 125 lt
+								[
+									drop "|"
+								]
+								[
+									dup 126 lt
+									[
+										drop "}"
+									]
+									[
+										drop "~"
+									]
+									if
+								]
+								if
+							]
+							if
+						]
+						if
+					]
+					if
+				]
+				if
+			]
+			if
+		]
+		if
+	]
+	if
+]
+def
+
+"bf"
+[
+	assemble
+	0 0 rot
+	[ dup 0 ne ]
+	[ step ]
+	while
+	drop swap 1000 mod 1 add 3 mul pow10 div
+	[ dup 0 gt ]
+	[ dup 1000 mod chr swap 1000 div ]
+	while
+	drop
+]
+def
+
+"hello"
+[
+	0
+	+ + + + + + + + [ > + + + + [ > + + > + + + > + + + > + < < < <
+	- ] loop > + > + > - > > + [ < ] loop < - ] loop > > . > - - -
+	. + + + + + + + . . + + + . > > . < - . < . + + + . - - - - - -
+	. - - - - - - - - . > > + . > + + .
+]
+def
+
+hello bf

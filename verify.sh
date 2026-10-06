@@ -430,6 +430,184 @@ fwhile() {
 	chk "run selfmul" "${x}" '12'
 }
 
-{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub && fopeq && fopne && foplt && fople && fopgt && fopge && funderflowcmp && fdispatchliteral && fdispatchstack && fdispatcharith && fdispatchaddtail && fdispatchboolerr && fdispatchsubtail && fdispatchcmptail && fevaltokens && fevallexed && fevalmore && fevalerrors && fevallexedmulti && frunsource && fquote && fcall && fif && fwhile; r="${?}"; } || exit 1
+fopmul() {
+	mkent 'b op_mul'
+	chk "op mul basic" "$(printf '7|6' | sed -f "${_ent}")" '42' || { rment; return 1; }
+	chk "op mul carry" "$(printf '99|99' | sed -f "${_ent}")" '9801' || { rment; return 1; }
+	chk "op mul zero" "$(printf '0|12345' | sed -f "${_ent}")" '0' || { rment; return 1; }
+	chk "op mul big" "$(printf '987654321|123456789' | sed -f "${_ent}")" '121932631112635269' || { rment; return 1; }
+	chk "op mul neg" "$(printf -- '4|-3' | sed -f "${_ent}")" '-12' || { rment; return 1; }
+	chk "op mul negneg" "$(printf -- '-4|-3' | sed -f "${_ent}")" '12' || { rment; return 1; }
+	chk "op mul negzero" "$(printf -- '-5|0' | sed -f "${_ent}")" '0' || { rment; return 1; }
+	x=$(printf '5' | sed -f "${_ent}"); r=$?
+	chke "underflow mul" "${x}" "${r}" 'ERR:UNDERFLOW' || { rment; return 1; }
+	x=$(printf 'a|5' | sed -f "${_ent}"); r=$?; rment
+	chke "op mul nonnum" "${x}" "${r}" 'ERR:NOT_NUMBER'
+}
+
+fopdivmod() {
+	mkent 'b op_div'
+	chk "op div basic" "$(printf '5|17' | sed -f "${_ent}")" '3' || { rment; return 1; }
+	chk "op div exact" "$(printf '10|1000' | sed -f "${_ent}")" '100' || { rment; return 1; }
+	chk "op div small" "$(printf '100|99' | sed -f "${_ent}")" '0' || { rment; return 1; }
+	chk "op div big" "$(printf '1234|123456789123' | sed -f "${_ent}")" '100046020' || { rment; return 1; }
+	chk "op div neg" "$(printf -- '5|-17' | sed -f "${_ent}")" '-3' || { rment; return 1; }
+	chk "op div negneg" "$(printf -- '-5|-17' | sed -f "${_ent}")" '3' || { rment; return 1; }
+	x=$(printf '0|5' | sed -f "${_ent}"); r=$?
+	chke "op div zero" "${x}" "${r}" 'ERR:DIV_ZERO' || { rment; return 1; }
+	x=$(printf '5' | sed -f "${_ent}"); r=$?; rment
+	chke "underflow div" "${x}" "${r}" 'ERR:UNDERFLOW' || return 1
+	mkent 'b op_mod'
+	chk "op mod basic" "$(printf '5|17' | sed -f "${_ent}")" '2' || { rment; return 1; }
+	chk "op mod exact" "$(printf '7|49' | sed -f "${_ent}")" '0' || { rment; return 1; }
+	chk "op mod big" "$(printf '1234|123456789123' | sed -f "${_ent}")" '443' || { rment; return 1; }
+	chk "op mod neg" "$(printf -- '5|-17' | sed -f "${_ent}")" '-2' || { rment; return 1; }
+	chk "op mod negdiv" "$(printf -- '-5|17' | sed -f "${_ent}")" '2' || { rment; return 1; }
+	x=$(printf -- '-0|5' | sed -f "${_ent}"); r=$?
+	chke "op mod zero" "${x}" "${r}" 'ERR:DIV_ZERO' || { rment; return 1; }
+	x=$(printf '5' | sed -f "${_ent}"); r=$?; rment
+	chke "underflow mod" "${x}" "${r}" 'ERR:UNDERFLOW'
+}
+
+fdispatchmuldiv() {
+	mkent "$(printf 'N\nb op_dispatch')"
+	chk "dispatch multai" "$(printf '6\0017\001keep\nW:mul\n' | sed -f "${_ent}")" "$(printf '42\001keep')" || { rment; return 1; }
+	chk "dispatch divtai" "$(printf '5\00117\001keep\nW:div\n' | sed -f "${_ent}")" "$(printf '3\001keep')" || { rment; return 1; }
+	chk "dispatch modtai" "$(printf '5\00117\001keep\nW:mod\n' | sed -f "${_ent}")" "$(printf '2\001keep')" || { rment; return 1; }
+	x=$(printf '5\nW:mod\n' | sed -f "${_ent}"); r=$?; rment
+	chke "dispatch modund" "${x}" "${r}" 'ERR:UNDERFLOW'
+}
+
+fevalmuldiv() {
+	mkent 'b op_eval'
+	chk "eval mul" "$(printf 'N:6\nN:7\nW:mul\n' | sed -f "${_ent}")" '42' || { rment; return 1; }
+	chk "eval divmod" "$(printf 'S:keep\nN:47\nN:5\nW:div\nN:7\nW:mod\n' | sed -f "${_ent}")" "$(printf '2\001keep')" || { rment; return 1; }
+	x=$(printf 'N:1\nW:mul\n' | sed -f "${_ent}" 2>/dev/null); r=$?; rment
+	chke "eval mulunder" "${x}" "${r}" 'ERR:UNDERFLOW'
+}
+
+frunmuldiv() {
+	mkent 'b op_run'
+	chk "run mul" "$(printf '6 7 mul\n' | sed -f "${_ent}")" '42' || { rment; return 1; }
+	chk "run multail" "$(printf '"keep" 3 4 mul 2 add\n' | sed -f "${_ent}")" "$(printf '14\001keep')" || { rment; return 1; }
+	chk "run div" "$(printf '17 5 div\n' | sed -f "${_ent}")" '3' || { rment; return 1; }
+	chk "run mod" "$(printf '17 5 mod\n' | sed -f "${_ent}")" '2' || { rment; return 1; }
+	chk "run divneg" "$(printf -- '-17 5 div -17 5 mod\n' | sed -f "${_ent}")" "$(printf -- '-2\001-3')" || { rment; return 1; }
+	chk "run divlaw" "$(printf '47 5 div 5 mul 47 5 mod add\n' | sed -f "${_ent}")" '47' || { rment; return 1; }
+	x=$(printf '5 0 div\n' | sed -f "${_ent}" 2>/dev/null); r=$?
+	chke "run divzero" "${x}" "${r}" 'ERR:DIV_ZERO' || { rment; return 1; }
+	x=$(printf '5 0 mod\n' | sed -f "${_ent}" 2>/dev/null); r=$?
+	chke "run modzero" "${x}" "${r}" 'ERR:DIV_ZERO' || { rment; return 1; }
+	x=$(printf '"a" 2 mul\n' | sed -f "${_ent}" 2>/dev/null); r=$?
+	chke "run mulnonnum" "${x}" "${r}" 'ERR:NOT_NUMBER' || { rment; return 1; }
+	x=$(printf '1 div\n' | sed -f "${_ent}" 2>/dev/null); r=$?; rment
+	chke "run divunder" "${x}" "${r}" 'ERR:UNDERFLOW'
+}
+
+fdef() {
+	mkent 'b op_run'
+	chk "run def" "$(printf '"sq" [ dup mul ] def 7 sq\n' | sed -f "${_ent}")" '49' || { rment; return 1; }
+	chk "run defonly" "$(printf '"sq" [ dup mul ] def\n' | sed -f "${_ent}")" '' || { rment; return 1; }
+	chk "run deftail" "$(printf '"keep" "sq" [ dup mul ] def 3 sq sq\n' | sed -f "${_ent}")" "$(printf '81\001keep')" || { rment; return 1; }
+	chk "run defmulti" "$(printf '"inc" [ 1 add ] def\n"twice" [ inc inc ] def\n5 twice\n' | sed -f "${_ent}")" '7' || { rment; return 1; }
+	chk "run defredef" "$(printf '"a" [ 1 ] def "b" [ 2 ] def "a" [ 3 ] def a b\n' | sed -f "${_ent}")" "$(printf '2\0013')" || { rment; return 1; }
+	chk "run defempty" "$(printf '"nop" [ ] def 4 nop\n' | sed -f "${_ent}")" '4' || { rment; return 1; }
+	chk "run defincall" "$(printf '[ "five" [ 5 ] def ] call five\n' | sed -f "${_ent}")" '5' || { rment; return 1; }
+	chk "run defquote" "$(printf '"q" [ [ 1 2 add ] ] def q call\n' | sed -f "${_ent}")" '3' || { rment; return 1; }
+	chk "run defstring" "$(printf '"s" [ "a b" ] def s\n' | sed -f "${_ent}")" 'a b' || { rment; return 1; }
+	chk "run defquoted" "$(printf '"sq" [ dup mul ] def [ 3 sq ] call\n' | sed -f "${_ent}")" '9' || { rment; return 1; }
+	chk "run defwhile" "$(printf '"pos" [ dup 0 gt ] def "dec" [ 1 sub ] def 3 [ pos ] [ dec ] while\n' | sed -f "${_ent}")" '0' || { rment; return 1; }
+	x=$(printf '"dup" [ 1 ] def\n' | sed -f "${_ent}" 2>/dev/null); r=$?
+	chke "run defprim" "${x}" "${r}" 'ERR:DEF_BAD_NAME' || { rment; return 1; }
+	x=$(printf '"5" [ 1 ] def\n' | sed -f "${_ent}" 2>/dev/null); r=$?
+	chke "run defnum" "${x}" "${r}" 'ERR:DEF_BAD_NAME' || { rment; return 1; }
+	x=$(printf '"x" "" [ 1 ] def\n' | sed -f "${_ent}" 2>/dev/null); r=$?
+	chke "run defnoname" "${x}" "${r}" 'ERR:DEF_BAD_NAME' || { rment; return 1; }
+	x=$(printf '"a b" [ 1 ] def\n' | sed -f "${_ent}" 2>/dev/null); r=$?
+	chke "run defspace" "${x}" "${r}" 'ERR:DEF_BAD_NAME' || { rment; return 1; }
+	x=$(printf '"[x" [ 1 ] def\n' | sed -f "${_ent}" 2>/dev/null); r=$?
+	chke "run defbracket" "${x}" "${r}" 'ERR:DEF_BAD_NAME' || { rment; return 1; }
+	x=$(printf '"n" 5 def\n' | sed -f "${_ent}" 2>/dev/null); r=$?
+	chke "run defnonq" "${x}" "${r}" 'ERR:DEF_NON_QUOTE' || { rment; return 1; }
+	x=$(printf '[ 1 ] def\n' | sed -f "${_ent}" 2>/dev/null); r=$?
+	chke "run defunder" "${x}" "${r}" 'ERR:UNDERFLOW' || { rment; return 1; }
+	x=$(printf '"f" [ 1 ] def nope\n' | sed -f "${_ent}" 2>/dev/null); r=$?
+	chke "run defunknown" "${x}" "${r}" 'ERR:UNKNOWN_WORD' || { rment; return 1; }
+	x=$(printf '"f" [ "x ]" ] def [ 1\n' | sed -f "${_ent}" 2>/dev/null); r=$?; rment
+	chke "run defunterm" "${x}" "${r}" 'ERR:UNTERMINATED_QUOTE'
+}
+
+frecursion() {
+	mkent 'b op_run'
+	chk "run recfact" "$(printf '"fact" [ dup 1 le [ ] [ dup 1 sub fact mul ] if ] def 10 fact\n' | sed -f "${_ent}")" '3628800' || { rment; return 1; }
+	chk "run recfib" "$(printf '"fib" [ dup 2 lt [ ] [ dup 1 sub fib swap 2 sub fib add ] if ] def 10 fib\n' | sed -f "${_ent}")" '55' || { rment; return 1; }
+	chk "run recgcd" "$(printf '"gcd" [ dup 0 eq [ drop ] [ swap over mod gcd ] if ] def 1071 462 gcd\n' | sed -f "${_ent}")" '21' || { rment; return 1; }
+	chk "run recmutual" "$(printf '"even" [ dup 0 eq [ drop true ] [ 1 sub odd ] if ] def "odd" [ dup 0 eq [ drop false ] [ 1 sub even ] if ] def 7 even 8 even\n' | sed -f "${_ent}")" "$(printf 'true\001false')" || { rment; return 1; }
+	chk "run recdeep" "$(printf '"down" [ dup 0 gt [ 1 sub down ] [ ] if ] def 200 down\n' | sed -f "${_ent}")" '0' || { rment; return 1; }
+	chk "run rectail" "$(printf '"keep" "sum" [ dup 0 eq [ ] [ dup 1 sub sum add ] if ] def 100 sum 1 add\n' | sed -f "${_ent}")" "$(printf '5051\001keep')" || { rment; return 1; }
+	x=$(printf '"pow" [ dup 0 eq [ drop drop 1 ] [ 1 sub over swap pow mul ] if ] def 2 64 pow\n' | sed -f "${_ent}"); rment
+	chk "run recpow" "${x}" '18446744073709551616'
+}
+
+fsigned() {
+	mkent 'b op_add'
+	chk "op add negtop" "$(printf -- '-5|3' | sed -f "${_ent}")" '-2' || { rment; return 1; }
+	chk "op add negsec" "$(printf -- '5|-3' | sed -f "${_ent}")" '2' || { rment; return 1; }
+	chk "op add negneg" "$(printf -- '-5|-3' | sed -f "${_ent}")" '-8' || { rment; return 1; }
+	x=$(printf -- '-3|3' | sed -f "${_ent}"); rment
+	chk "op add negzero" "${x}" '0' || return 1
+	mkent 'b op_sub'
+	chk "op sub negtop" "$(printf -- '-3|5' | sed -f "${_ent}")" '8' || { rment; return 1; }
+	chk "op sub negsec" "$(printf -- '3|-5' | sed -f "${_ent}")" '-8' || { rment; return 1; }
+	x=$(printf -- '-3|-5' | sed -f "${_ent}"); rment
+	chk "op sub negneg" "${x}" '-2' || return 1
+	mkent 'b op_run'
+	chk "run addneg" "$(printf -- '"keep" -5 -3 add\n' | sed -f "${_ent}")" "$(printf -- '-8\001keep')" || { rment; return 1; }
+	chk "run subneg" "$(printf -- '"keep" 5 -3 sub -5 3 sub\n' | sed -f "${_ent}")" "$(printf -- '-8\0018\001keep')" || { rment; return 1; }
+	chk "run divlawneg" "$(printf -- '-47 5 div 5 mul -47 5 mod add\n' | sed -f "${_ent}")" '-47' || { rment; return 1; }
+	for row in 'eq -5 -5 true' 'eq -0 0 true' 'ne -5 5 true' 'lt -5 3 true' 'lt -5 -3 true' 'lt -3 -5 false' 'le -5 -5 true' 'gt 3 -5 true' 'gt -3 -5 true' 'ge -5 -3 false'; do
+		set -- ${row}
+		x=$(printf '"keep" %s %s %s\n' "${2}" "${3}" "${1}" | sed -f "${_ent}")
+		chk "run ${1}${2}${3}" "${x}" "$(printf '%s\001keep' "${4}")" || { rment; return 1; }
+	done
+	rment
+}
+
+femptybottom() {
+	mkent 'b op_run'
+	chk "run emptybot" "$(printf '"" 1\n' | sed -f "${_ent}")" "$(printf '1\001')" || { rment; return 1; }
+	chk "run emptyadd" "$(printf '"" 1 2 add\n' | sed -f "${_ent}")" "$(printf '3\001')" || { rment; return 1; }
+	chk "run emptyquote" "$(printf '"" [ 1 ]\n' | sed -f "${_ent}")" "$(printf 'Q:N:1\001')" || { rment; return 1; }
+	x=$(printf '"" [ 1 ] def\n' | sed -f "${_ent}" 2>/dev/null); r=$?; rment
+	chke "run emptyname" "${x}" "${r}" 'ERR:DEF_BAD_NAME'
+}
+
+ffastpath() {
+	mkent 'b op_run'
+	chk "run deepquote" "$(printf '[ [ [ [ [ [ [ [ [ [ 1 ] ] ] ] ] ] ] ] ] ] call call call call call call call call call call\n' | sed -f "${_ent}")" '1' || { rment; return 1; }
+	chk "run worddeep" "$(printf '"f" [ [ [ [ [ [ [ [ [ [ [ 7 ] ] ] ] ] ] ] ] ] ] ] def f call call call call call call call call call call\n' | sed -f "${_ent}")" '7' || { rment; return 1; }
+	chk "run wordnest" "$(printf '"g" [ [ 1 [ 2 ] 3 ] ] def g\n' | sed -f "${_ent}")" "$(printf 'Q:N:1\005B:[\005N:2\005B:]\005N:3')" || { rment; return 1; }
+	chk "run wordempty" "$(printf '"h" [ [ ] [ ] ] def h\n' | sed -f "${_ent}")" "$(printf 'Q:\001Q:')" || { rment; return 1; }
+	chk "run wordstrbr" "$(printf '"x" [ 5 [ "a ]" ] call ] def x\n' | sed -f "${_ent}")" "$(printf 'a ]\0015')" || { rment; return 1; }
+	chk "run addcat" "$(printf '100000 345 add 345 100000 add 1000 999 add\n' | sed -f "${_ent}")" "$(printf '1999\001100345\001100345')" || { rment; return 1; }
+	x=$(printf '7 1000 mul 1000 7 mul 123456 1000 mod 123456 1000 div 12 1000 div\n' | sed -f "${_ent}"); rment
+	chk "run pow10fast" "${x}" "$(printf '0\001123\001456\0017000\0017000')"
+}
+
+fbfvm() {
+	mkent 'b op_run'
+	x=$({ sed '/^"hello"$/,$d' examples/brainfuck_vm.sedit; printf '0 + + + + + + + + [ > + + + + + + + + + < - ] loop > . + .\nbf\n'; } | sed -f "${_ent}"); rment
+	chk "run bfvm" "${x}" "$(printf 'H\001I')"
+}
+
+fleadspace() {
+	chk "lex leadspace" "$(printf '  5 "a"\n' | sed -nf sedit.sed)" "$(printf 'N:5\nS:a')" || return 1
+	mkent 'b op_run'
+	chk "run leadspace" "$(printf '   5 6 add\n' | sed -f "${_ent}")" '11' || { rment; return 1; }
+	x=$(printf '\t[ 1 ] call\n' | sed -f "${_ent}"); rment
+	chk "run leadtab" "${x}" '1'
+}
+
+{ flexnumber && flexnegnumber && flexstring && flexemptystring && flexword && flexbrackets && flexmulti && flexprogram && fopdup && fopdrop && fopswap && fopover && foprot && fopaddbasic && fopaddcarry && fopaddoverflow && fopaddzero && fopaddunequal && fopsubbasic && fopsubnegative && fopsubborrow && fopsubzero && fopsubunequal && fopsubboundary && funderflowdup && funderflowdrop && funderflowswap && funderflowover && funderflowrot && funderflowadds && funderflowsub && fopeq && fopne && foplt && fople && fopgt && fopge && funderflowcmp && fdispatchliteral && fdispatchstack && fdispatcharith && fdispatchaddtail && fdispatchboolerr && fdispatchsubtail && fdispatchcmptail && fevaltokens && fevallexed && fevalmore && fevalerrors && fevallexedmulti && frunsource && fquote && fcall && fif && fwhile && fopmul && fopdivmod && fdispatchmuldiv && fevalmuldiv && frunmuldiv && fdef && frecursion && fsigned && femptybottom && fleadspace && ffastpath && fbfvm; r="${?}"; } || exit 1
 
 [ "${r}" -eq 0 ] 2>/dev/null || printf "%s\n" "${r}"
